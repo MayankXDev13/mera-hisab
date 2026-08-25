@@ -1,6 +1,10 @@
 export function formatRupees(paise: number): string {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(paise/100);
 }
+export function formatCompactPaise(paise: number): string {
+  const n = paise / 100;
+  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", notation: "compact", maximumFractionDigits: 1 }).format(n);
+}
 export function rupeesToPaise(s: string): number {
   const parts=s.trim().split(".");
   const r=parseInt(parts[0]||"0",10);
