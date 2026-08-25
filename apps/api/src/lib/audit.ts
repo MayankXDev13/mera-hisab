@@ -11,9 +11,6 @@ export function writeAudit(params: {
   if (!params.action || !params.entityType || !params.entityId) {
     throw new Error("audit: missing required fields");
   }
-  if (!params.actorId) {
-    throw new Error("audit: missing actorId");
-  }
   store.auditLogs.push({
     id: newId(),
     actorId: params.actorId,
