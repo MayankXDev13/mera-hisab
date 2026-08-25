@@ -79,6 +79,17 @@ export type AuditLog = {
   createdAt: string;
 };
 
+export type User = {
+  id: string;
+  email: string;
+  name: string | null;
+  role: string;
+  emailVerified: number;
+  passwordHash: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 // ---------------------------------------------------------------------------
 // Error taxonomy
 // ---------------------------------------------------------------------------
@@ -123,6 +134,13 @@ export type AuditFilter = {
 // ---------------------------------------------------------------------------
 export type LedgerRepo = {
   withTransaction<T>(fn: (tx: LedgerRepo) => Promise<T>): Promise<T>;
+
+  users: {
+    get(id: string): Promise<User | null>;
+    getByEmail(email: string): Promise<User | null>;
+    create(u: Omit<User, "createdAt" | "updatedAt" | "emailVerified"> & Partial<Pick<User, "createdAt" | "updatedAt" | "emailVerified">>): Promise<User>;
+    updatePassword(userId: string, passwordHash: string): Promise<void>;
+  };
 
   accounts: {
     get(id: string): Promise<Account | null>;
@@ -180,6 +198,103 @@ export function createPgRepo(db: Db): LedgerRepo {
         const txRepo = wrapTx(txDb);
         return fn(txRepo);
       });
+    },
+
+    users: {
+      async get(id) {
+        const rows = await db.select().from(schema.users).where(eq(schema.users.id, id)).limit(1);
+        if (!rows[0]) return null;
+        const u = rows[0]!;
+        let passwordHash: string | null = null;
+        try {
+          const authRows = await db.select().from(schema.accounts_auth).where(eq(schema.accounts_auth.userId, id)).limit(1);
+          passwordHash = (authRows[0] as unknown as { password?: string | null })?.password ?? null;
+        } catch {}
+        return {
+          id: u.id,
+          email: u.email,
+          name: (u as unknown as { name: string | null }).name ?? null,
+          role: (u as unknown as { role: string }).role ?? "admin",
+          emailVerified: (u as unknown as { emailVerified: number }).emailVerified ?? 0,
+          passwordHash,
+          createdAt: toIso((u as unknown as { createdAt: Date | string }).createdAt),
+          updatedAt: toIso((u as unknown as { updatedAt: Date | string }).updatedAt),
+        };
+      },
+      async getByEmail(email) {
+        const lower = email.toLowerCase();
+        const rows = await db.select().from(schema.users).where(eq(schema.users.email, lower)).limit(1);
+        if (!rows[0]) return null;
+        const u = rows[0]!;
+        let passwordHash: string | null = null;
+        try {
+          const authRows = await db.select().from(schema.accounts_auth).where(eq(schema.accounts_auth.userId, u.id)).limit(1);
+          passwordHash = (authRows[0] as unknown as { password?: string | null })?.password ?? null;
+        } catch {}
+        return {
+          id: u.id,
+          email: u.email,
+          name: (u as unknown as { name: string | null }).name ?? null,
+          role: (u as unknown as { role: string }).role ?? "admin",
+          emailVerified: (u as unknown as { emailVerified: number }).emailVerified ?? 0,
+          passwordHash,
+          createdAt: toIso((u as unknown as { createdAt: Date | string }).createdAt),
+          updatedAt: toIso((u as unknown as { updatedAt: Date | string }).updatedAt),
+        };
+      },
+      async create(u) {
+        const id = u.id;
+        const now = new Date();
+        try {
+          const rows2 = await (db as unknown as { insert: (t: unknown) => { values: (v: unknown) => { returning: () => Promise<unknown[]> } } }).insert(schema.users).values({
+            id,
+            email: u.email.toLowerCase(),
+            name: u.name ?? null,
+            role: u.role ?? "admin",
+          }).returning() as unknown as (typeof schema.users.$inferSelect)[];
+          const row = rows2[0] as typeof schema.users.$inferSelect | undefined;
+          if (!row) throw new RepoError("failed to create user", "Unknown", 500);
+          if (u.passwordHash) {
+            await (db as unknown as { insert: (t: unknown) => { values: (v: unknown) => Promise<void> } }).insert(schema.accounts_auth).values({
+              id: crypto.randomUUID(),
+              userId: id,
+              accountId: id,
+              providerId: "credential",
+              password: u.passwordHash,
+            });
+          }
+          return {
+            id: row!.id,
+            email: row!.email,
+            name: (row as unknown as { name: string | null }).name ?? null,
+            role: (row as unknown as { role: string }).role ?? "admin",
+            emailVerified: 0,
+            passwordHash: u.passwordHash ?? null,
+            createdAt: toIso((row as unknown as { createdAt: Date | string }).createdAt ?? now),
+            updatedAt: toIso((row as unknown as { updatedAt: Date | string }).updatedAt ?? now),
+          };
+        } catch (e: unknown) {
+          const msg = (e as Error).message ?? "";
+          if (msg.includes("users_email_unique") || msg.includes("duplicate key") || msg.includes("unique")) {
+            throw new RepoError("email already exists", "Conflict", 409);
+          }
+          throw e;
+        }
+      },
+      async updatePassword(userId, passwordHash) {
+        const rows = await db.select().from(schema.accounts_auth).where(eq(schema.accounts_auth.userId, userId)).limit(1);
+        if (!rows[0]) {
+          await db.insert(schema.accounts_auth).values({
+            id: crypto.randomUUID(),
+            userId,
+            accountId: userId,
+            providerId: "credential",
+            password: passwordHash,
+          });
+        } else {
+          await db.update(schema.accounts_auth).set({ password: passwordHash }).where(eq(schema.accounts_auth.userId, userId));
+        }
+      },
     },
 
     accounts: {
@@ -715,7 +830,10 @@ export function createMemoryRepo(seed?: {
   transactions?: Transaction[];
   charges?: MonthlyCharge[];
   auditLogs?: AuditLog[];
+  users?: User[];
 }): LedgerRepo {
+  const usersMap = new Map<string, User>();
+  const usersByEmail = new Map<string, string>();
   const accounts = new Map<string, Account>();
   const cards = new Map<string, CreditCard>();
   const customers = new Map<string, Customer>();
@@ -739,8 +857,15 @@ export function createMemoryRepo(seed?: {
       chargeKey.set(`${c.customerId}:${c.periodMonth}`, c.id);
     }
   if (seed?.auditLogs) auditLogs.push(...seed.auditLogs.map((a) => ({ ...a })));
+  if (seed?.users)
+    for (const u of seed.users) {
+      usersMap.set(u.id, { ...u });
+      usersByEmail.set(u.email.toLowerCase(), u.id);
+    }
 
   function clone(): {
+    users: Map<string, User>;
+    usersByEmail: Map<string, string>;
     accounts: Map<string, Account>;
     cards: Map<string, CreditCard>;
     customers: Map<string, Customer>;
@@ -751,6 +876,8 @@ export function createMemoryRepo(seed?: {
     auditLogs: AuditLog[];
   } {
     return {
+      users: new Map(usersMap),
+      usersByEmail: new Map(usersByEmail),
       accounts: new Map(accounts),
       cards: new Map(cards),
       customers: new Map(customers),
@@ -763,6 +890,10 @@ export function createMemoryRepo(seed?: {
   }
 
   function restore(snap: ReturnType<typeof clone>) {
+    usersMap.clear();
+    for (const [k, v] of snap.users) usersMap.set(k, v);
+    usersByEmail.clear();
+    for (const [k, v] of snap.usersByEmail) usersByEmail.set(k, v);
     accounts.clear();
     for (const [k, v] of snap.accounts) accounts.set(k, v);
     cards.clear();
@@ -790,6 +921,40 @@ export function createMemoryRepo(seed?: {
         restore(snap);
         throw e;
       }
+    },
+
+    users: {
+      async get(id) {
+        return usersMap.get(id) ?? null;
+      },
+      async getByEmail(email) {
+        const uid = usersByEmail.get(email.toLowerCase());
+        if (!uid) return null;
+        return usersMap.get(uid) ?? null;
+      },
+      async create(u) {
+        const lower = u.email.toLowerCase();
+        if (usersByEmail.has(lower)) throw new RepoError("email already exists", "Conflict", 409);
+        const now = new Date().toISOString();
+        const row: User = {
+          id: u.id,
+          email: lower,
+          name: u.name ?? null,
+          role: u.role ?? "admin",
+          emailVerified: u.emailVerified ?? 0,
+          passwordHash: u.passwordHash ?? null,
+          createdAt: u.createdAt ?? now,
+          updatedAt: u.updatedAt ?? now,
+        };
+        usersMap.set(row.id, row);
+        usersByEmail.set(lower, row.id);
+        return row;
+      },
+      async updatePassword(userId, passwordHash) {
+        const cur = usersMap.get(userId);
+        if (!cur) throw new RepoError("user not found", "NotFound", 404);
+        usersMap.set(userId, { ...cur, passwordHash, updatedAt: new Date().toISOString() });
+      },
     },
 
     accounts: {

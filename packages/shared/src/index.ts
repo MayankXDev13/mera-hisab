@@ -86,15 +86,25 @@ export const transactionDirectionSchema = z.enum(["debit", "credit"]);
 export const sourceTypeSchema = z.enum(["account", "credit_card"]);
 export const chargeStatusSchema = z.enum(["applied", "waived", "reduced"]);
 
-export const createTransactionSchema = z.object({
-  direction: transactionDirectionSchema,
-  customerId: z.string().uuid(),
-  sourceType: sourceTypeSchema,
-  sourceId: z.string().uuid(),
-  amountPaise: paisePositiveSchema,
-  occurredAt: z.string().datetime().or(z.date()).optional(),
-  note: z.string().max(2000).optional().nullable(),
-});
+export const createTransactionSchema = z
+  .object({
+    direction: transactionDirectionSchema,
+    customerId: z.string().uuid(),
+    sourceType: sourceTypeSchema,
+    sourceId: z.string().uuid(),
+    amountPaise: paisePositiveSchema.optional(),
+    amountRupees: z.union([z.string(), z.number()]).optional(),
+    occurredAt: z.string().datetime().or(z.date()).optional(),
+    note: z.string().max(2000).optional().nullable(),
+  })
+  .refine((v) => v.amountPaise !== undefined || v.amountRupees !== undefined, {
+    message: "amountPaise or amountRupees is required",
+    path: ["amountPaise"],
+  })
+  .refine((v) => !(v.amountPaise !== undefined && v.amountRupees !== undefined), {
+    message: "provide amountPaise or amountRupees, not both",
+    path: ["amountRupees"],
+  });
 
 // ---------------------------------------------------------------------------
 // Monthly charges / waivers
@@ -112,6 +122,45 @@ export const paginationSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
+
+export const dateRangeQuerySchema = z.object({
+  from: z
+    .string()
+    .refine((s) => !Number.isNaN(Date.parse(s)), { message: "invalid from date" })
+    .optional(),
+  to: z
+    .string()
+    .refine((s) => !Number.isNaN(Date.parse(s)), { message: "invalid to date" })
+    .optional(),
+});
+
+export const transactionFilterQuerySchema = paginationSchema
+  .merge(dateRangeQuerySchema)
+  .merge(
+    z.object({
+      customerId: z.string().uuid().optional(),
+      sourceType: z.enum(["account", "credit_card"]).optional(),
+      sourceId: z.string().uuid().optional(),
+      direction: z.enum(["debit", "credit"]).optional(),
+    }),
+  );
+
+export const chargeFilterQuerySchema = z.object({
+  customerId: z.string().uuid().optional(),
+  periodMonth: z.string().optional(),
+});
+
+export const auditFilterQuerySchema = paginationSchema
+  .merge(dateRangeQuerySchema)
+  .merge(
+    z.object({
+      action: z.string().optional(),
+      entityType: z.string().optional(),
+      entityId: z.string().optional(),
+      actorId: z.string().optional(),
+      q: z.string().optional(),
+    }),
+  );
 
 // ---------------------------------------------------------------------------
 // Money helpers

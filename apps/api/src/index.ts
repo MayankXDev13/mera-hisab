@@ -16,20 +16,6 @@ import { auditRouter } from "./routes/audit.routes.js";
 import { exportsRouter } from "./routes/exports.routes.js";
 import { runMonthlyCharges } from "./lib/charges.js";
 
-async function ensureSeedAdmin() {
-  const { store, newId, nowIso } = await import("./lib/store.js");
-  if (store.users.size === 0) {
-    const bcrypt = await import("bcryptjs");
-    const email = (process.env.SEED_EMAIL ?? "admin@example.com").toLowerCase();
-    const password = process.env.SEED_PASSWORD ?? "Admin123!";
-    const hash = await bcrypt.hash(password, 10);
-    const id = newId();
-    store.users.set(id, { id, email, passwordHash: hash, name: "Admin", role: "admin", createdAt: nowIso() });
-    store.usersByEmail.set(email, id);
-    console.log(`[seed] created admin ${email}`);
-  }
-}
-
 export function createApp() {
   const app = express();
   app.use(cors({ origin: process.env.WEB_URL ?? "http://localhost:3000", credentials: true }));
@@ -66,8 +52,6 @@ if (process.env.NODE_ENV !== "test") {
 
 const port = parseInt(process.env.API_PORT ?? "3002", 10);
 if (import.meta.url === `file://${process.argv[1]}`) {
-  ensureSeedAdmin().then(() => {
-    const app = createApp();
-    app.listen(port, () => console.log(`API listening on :${port}`));
-  });
+  const app = createApp();
+  app.listen(port, () => console.log(`API listening on :${port}`));
 }

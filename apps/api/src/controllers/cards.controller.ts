@@ -1,18 +1,6 @@
-import { z } from "zod";
 import type { Request, Response } from "express";
 import { getRepo } from "../lib/repo.js";
-
-const createSchema = z.object({
-  issuer: z.string().min(1).max(200),
-  last4: z.string().regex(/^\d{4}$/, "last4 must be 4 digits"),
-  totalLimitPaise: z.number().int().positive(),
-});
-
-const updateSchema = z.object({
-  issuer: z.string().min(1).max(200).optional(),
-  last4: z.string().regex(/^\d{4}$/).optional(),
-  totalLimitPaise: z.number().int().positive().optional(),
-});
+import { toCardDto } from "../lib/dto.js";
 
 function actor(req: Request): string | null {
   return (req as unknown as { user?: { id: string } }).user?.id ?? null;
@@ -20,20 +8,20 @@ function actor(req: Request): string | null {
 
 export async function listCards(_req: Request, res: Response) {
   const repo = getRepo();
-  res.json(await repo.cards.list());
+  const list = await repo.cards.list();
+  res.json(list.map(toCardDto));
 }
 
 export async function createCard(req: Request, res: Response) {
-  const parsed = createSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const body = req.body as { issuer: string; last4: string; totalLimitPaise: number };
   const repo = getRepo();
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   const card = await repo.cards.create({
     id,
-    issuer: parsed.data.issuer,
-    last4: parsed.data.last4,
-    totalLimitPaise: parsed.data.totalLimitPaise,
+    issuer: body.issuer,
+    last4: body.last4,
+    totalLimitPaise: body.totalLimitPaise,
     usedPaise: 0,
     status: "active",
     createdAt: now,
@@ -47,30 +35,29 @@ export async function createCard(req: Request, res: Response) {
     before: null,
     after: JSON.stringify(card),
   });
-  res.status(201).json({ ...card, availablePaise: card.totalLimitPaise - card.usedPaise });
+  res.status(201).json(toCardDto(card));
 }
 
 export async function getCard(req: Request, res: Response) {
   const repo = getRepo();
-  const card = await repo.cards.get(String((req.params as Record<string,string>).id));
+  const card = await repo.cards.get(String((req.params as Record<string, string>).id));
   if (!card) return res.status(404).json({ error: "not found" });
-  res.json({ ...card, availablePaise: card.totalLimitPaise - card.usedPaise });
+  res.json(toCardDto(card));
 }
 
 export async function updateCard(req: Request, res: Response) {
   const repo = getRepo();
-  const card = await repo.cards.get(String((req.params as Record<string,string>).id));
+  const card = await repo.cards.get(String((req.params as Record<string, string>).id));
   if (!card) return res.status(404).json({ error: "not found" });
-  const parsed = updateSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-  if (parsed.data.totalLimitPaise !== undefined && card.usedPaise > parsed.data.totalLimitPaise) {
+  const body = req.body as { issuer?: string; last4?: string; totalLimitPaise?: number };
+  if (body.totalLimitPaise !== undefined && card.usedPaise > body.totalLimitPaise) {
     return res.status(400).json({ error: "used exceeds new limit" });
   }
   const before = { ...card };
   const updated = await repo.cards.update(card.id, {
-    ...(parsed.data.issuer !== undefined ? { issuer: parsed.data.issuer } : {}),
-    ...(parsed.data.last4 !== undefined ? { last4: parsed.data.last4 } : {}),
-    ...(parsed.data.totalLimitPaise !== undefined ? { totalLimitPaise: parsed.data.totalLimitPaise } : {}),
+    ...(body.issuer !== undefined ? { issuer: body.issuer } : {}),
+    ...(body.last4 !== undefined ? { last4: body.last4 } : {}),
+    ...(body.totalLimitPaise !== undefined ? { totalLimitPaise: body.totalLimitPaise } : {}),
   });
   await repo.audit.write({
     actorId: actor(req),
@@ -80,12 +67,12 @@ export async function updateCard(req: Request, res: Response) {
     before: JSON.stringify(before),
     after: JSON.stringify(updated),
   });
-  res.json({ ...updated, availablePaise: updated.totalLimitPaise - updated.usedPaise });
+  res.json(toCardDto(updated));
 }
 
 export async function deactivateCard(req: Request, res: Response) {
   const repo = getRepo();
-  const card = await repo.cards.get(String((req.params as Record<string,string>).id));
+  const card = await repo.cards.get(String((req.params as Record<string, string>).id));
   if (!card) return res.status(404).json({ error: "not found" });
   const before = { ...card };
   const updated = await repo.cards.update(card.id, { status: "deactivated" });
@@ -97,5 +84,5 @@ export async function deactivateCard(req: Request, res: Response) {
     before: JSON.stringify(before),
     after: JSON.stringify(updated),
   });
-  res.json(updated);
+  res.json(toCardDto(updated));
 }
