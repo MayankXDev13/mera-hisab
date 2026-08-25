@@ -4,16 +4,16 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import cron from "node-cron";
 import { authMiddleware } from "./lib/auth.js";
-import { healthRouter } from "./routes/health.js";
-import { authRouter } from "./routes/auth.js";
-import { accountsRouter } from "./routes/accounts.js";
-import { cardsRouter } from "./routes/cards.js";
-import { customersRouter } from "./routes/customers.js";
-import { transactionsRouter } from "./routes/transactions.js";
-import { chargesRouter } from "./routes/charges.js";
-import { dashboardRouter } from "./routes/dashboard.js";
-import { auditRouter } from "./routes/audit.js";
-import { exportsRouter } from "./routes/exports.js";
+import { healthRouter } from "./routes/health.routes.js";
+import { authRouter } from "./routes/auth.routes.js";
+import { accountsRouter } from "./routes/accounts.routes.js";
+import { cardsRouter } from "./routes/cards.routes.js";
+import { customersRouter } from "./routes/customers.routes.js";
+import { transactionsRouter } from "./routes/transactions.routes.js";
+import { chargesRouter } from "./routes/charges.routes.js";
+import { dashboardRouter } from "./routes/dashboard.routes.js";
+import { auditRouter } from "./routes/audit.routes.js";
+import { exportsRouter } from "./routes/exports.routes.js";
 import { runMonthlyCharges } from "./lib/charges.js";
 
 async function ensureSeedAdmin() {
