@@ -16,8 +16,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { formatRupees, formatBps, formatDate } from "@/lib/utils/format";
 import { toast } from "@/components/ui/toast";
-import { TransactionForm } from "@/components/app/transaction-form";
-import { RepaymentDialog } from "@/components/app/repayment-dialog";
+import { TransactionForm } from "@/components/app/TransactionForm";
+import { RepaymentDialog } from "@/components/app/RepaymentDialog";
 import { RiAddLine, RiGroupLine, RiSearchLine, RiQuillPenLine } from "@remixicon/react";
 
 function errMsg(e: unknown) {

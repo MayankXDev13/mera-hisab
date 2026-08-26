@@ -15,7 +15,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toast";
 import { useAuth } from "@/providers/auth-provider";
-import { ThemeToggle } from "@/components/app/theme-toggle";
+import { ThemeToggle } from "@/components/app/ThemeToggle";
 
 function extractError(e: unknown): string {
   const err = e as {

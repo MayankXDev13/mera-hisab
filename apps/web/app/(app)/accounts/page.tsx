@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { formatRupees } from "@/lib/utils/format";
-import { AmountInput, amountToPaiseOrNull } from "@/components/app/amount-input";
+import { AmountInput, amountToPaiseOrNull } from "@/components/app/AmountInput";
 import { toast } from "@/components/ui/toast";
 import { RiAddLine, RiEditLine, RiWallet3Line } from "@remixicon/react";
 
