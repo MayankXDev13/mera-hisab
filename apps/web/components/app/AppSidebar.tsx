@@ -72,13 +72,11 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="px-2 py-3">
-        <SidebarGroup className="p-0">
-          <SidebarGroupLabel className="px-2 text-[10px] tracking-[0.14em] uppercase text-muted-foreground/70">
-            Khata
-          </SidebarGroupLabel>
-          <SidebarGroupContent className="mt-1">
-            <SidebarMenu className="gap-1">
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>Khata</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
               {items.map((item) => {
                 const isActive =
                   item.url === "/"
@@ -90,15 +88,8 @@ export function AppSidebar() {
                       isActive={isActive}
                       tooltip={item.title}
                       render={<Link href={item.url} />}
-                      className={
-                        isActive
-                          ? "bg-primary text-primary-foreground shadow-sm hover:bg-primary hover:text-primary-foreground data-active:bg-primary"
-                          : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
-                      }
                     >
-                      <item.icon
-                        className={isActive ? "text-primary-foreground" : ""}
-                      />
+                      <item.icon />
                       <span className="font-medium tracking-tight">
                         {item.title}
                       </span>

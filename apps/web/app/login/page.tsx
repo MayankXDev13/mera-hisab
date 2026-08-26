@@ -17,6 +17,7 @@ import { toast } from "@/components/ui/toast";
 import { useAuth } from "@/providers/auth-provider";
 import { ThemeToggle } from "@/components/app/ThemeToggle";
 
+
 function extractError(e: unknown): string {
   const err = e as {
     response?: {
@@ -43,6 +44,7 @@ export default function LoginPage() {
   });
 
   const [regForm, setRegForm] = useState({
+    name: "",
     email: "",
     password: "",
   });
@@ -120,7 +122,7 @@ export default function LoginPage() {
             </div>
 
             <span className="text-[15px] font-semibold tracking-tight">
-              Mera Hisaab
+              Mera Hisab
             </span>
 
             <span className="hidden sm:inline text-[10px] tracking-[0.14em] uppercase text-muted-foreground font-medium border border-border rounded-full px-2 py-0.5">
@@ -221,6 +223,23 @@ export default function LoginPage() {
                     <CardContent>
                       <form onSubmit={handleRegister} className="space-y-4">
                         <div className="space-y-2">
+                          <Label htmlFor="reg-name">Name</Label>
+
+                          <Input
+                            id="reg-name"
+                            required
+                            value={regForm.name}
+                            onChange={(e) =>
+                              setRegForm({
+                                ...regForm,
+                                name: e.target.value,
+                              })
+                            }
+                            placeholder="Ramesh"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
                           <Label htmlFor="reg-email">Email</Label>
 
                           <Input
@@ -269,9 +288,13 @@ export default function LoginPage() {
                   </Card>
                 </TabsContent>
               </Tabs>
+
+
             </div>
           </div>
         </div>
+
+
       </div>
     </div>
   );
