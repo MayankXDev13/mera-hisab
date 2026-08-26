@@ -1,9 +1,8 @@
 import type { Request, Response } from "express";
-import { eq, desc, and } from "@repo/db";
 import { db } from "@repo/db";
-import { transactions } from "@repo/db/schema";
 import { toTransactionDto } from "../lib/dto.js";
 import { createLedgerTransaction, reverseLedgerTransaction, LedgerError } from "../services/ledger.service.js";
+import { listTransactionsQuery } from "../services/queries.service.js";
 
 function getActor(req: Request): string | null {
   return (req as unknown as { user?: { id: string } }).user?.id ?? null;
@@ -60,29 +59,6 @@ export const listTransactions = async (req: Request, res: Response) => {
     };
   }).validatedQuery;
 
-  const conditions: ReturnType<typeof eq>[] = [];
-  if (q.customerId) conditions.push(eq(transactions.customerId as any, q.customerId as any));
-  if (q.sourceType) conditions.push(eq(transactions.sourceType as any, q.sourceType as any));
-  if (q.sourceId) conditions.push(eq(transactions.sourceId as any, q.sourceId as any));
-  if (q.direction) conditions.push(eq(transactions.direction as any, q.direction as any));
-
-  let rows: (typeof transactions.$inferSelect)[];
-  if (conditions.length === 1) rows = await (db as any).select().from(transactions).where(conditions[0]!).orderBy(desc(transactions.occurredAt));
-  else if (conditions.length > 1) rows = await (db as any).select().from(transactions).where(and(...conditions)).orderBy(desc(transactions.occurredAt));
-  else rows = await (db as any).select().from(transactions).orderBy(desc(transactions.occurredAt));
-
-  if (q.from) {
-    const fromD = new Date(q.from);
-    rows = rows.filter((r) => new Date(r.occurredAt) >= fromD);
-  }
-  if (q.to) {
-    const toD = new Date(q.to);
-    rows = rows.filter((r) => new Date(r.occurredAt) <= toD);
-  }
-
-  const total = rows.length;
-  const start = (q.page - 1) * q.limit;
-  const paged = rows.slice(start, start + q.limit);
-
-  return res.json({ transactions: paged.map(toTransactionDto), total, page: q.page, limit: q.limit });
+  const { transactions: rows, total } = await listTransactionsQuery(q, { db });
+  return res.json({ transactions: rows.map(toTransactionDto), total, page: q.page, limit: q.limit });
 };

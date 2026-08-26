@@ -3,8 +3,10 @@ import type { Request, Response } from "express";
 import { eq, asc } from "@repo/db";
 import { db as _db } from "@repo/db";
 const db: any = _db;
-import { customers, transactions, auditLogs } from "@repo/db/schema";
+import { customers, auditLogs } from "@repo/db/schema";
 import { toCustomerDto } from "../lib/dto.js";
+import { LedgerError } from "../services/ledger.service.js";
+import { getOutstandingQuery } from "../services/queries.service.js";
 
 function getActor(req: Request): string | null {
   return (req as unknown as { user?: { id: string } }).user?.id ?? null;
@@ -123,15 +125,21 @@ export const updateCustomer = async (req: Request, res: Response) => {
 };
 
 export const getOutstanding = async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const customer = await (db as any).select().from(customers).where(eq(customers.id as any, id! as any)).limit(1);
-  if (!customer[0]) return res.status(404).json({ error: "customer not found" });
-
-  const txs = await (db as any).select().from(transactions).where(eq(transactions.customerId as any, id! as any));
-  let outstandingPaise = 0;
-  for (const t of txs) {
-    if (t.direction === "debit") outstandingPaise += t.amountPaise;
-    else outstandingPaise -= t.amountPaise;
+  const { id } = req.params as { id: string };
+  try {
+    const outstandingPaise = await getOutstandingQuery(id, { db });
+    return res.json({ customerId: id, outstandingPaise });
+  } catch (e) {
+    if (e instanceof LedgerError) return res.status(e.statusCode).json({ error: e.message });
+    return res.status(500).json({ error: (e as Error).message });
   }
-  return res.json({ customerId: id, outstandingPaise });
+};
+
+export const getOutstandingBatch = async (req: Request, res: Response) => {
+  const { ids } = req.query as { ids?: string | string[] };
+  const list = Array.isArray(ids) ? ids : ids ? ids.split(",") : [];
+  if (list.length === 0) return res.json({ outstandings: {} });
+  const { getOutstandingBatchQuery } = await import("../services/queries.service.js");
+  const outstandings = await getOutstandingBatchQuery(list, { db });
+  return res.json({ outstandings });
 };
