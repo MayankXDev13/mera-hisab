@@ -1,11 +1,11 @@
 import { Router } from "express";
-import { validateBody } from "../lib/validate.js";
-import { z } from "zod";
-import * as auth from "../controllers/auth.controller.js";
+import { toNodeHandler } from "better-auth/node";
+import { auth } from "../lib/auth.js";
 
-const loginSchema = z.object({ email: z.string().email(), password: z.string().min(1) });
+const router = Router();
 
-export const authRouter = Router();
-authRouter.post("/login", validateBody(loginSchema), auth.login);
-authRouter.post("/logout", auth.logout);
-authRouter.get("/me", auth.me);
+// Better Auth handles all /api/auth/* routes including sign-in, sign-up, callback, session
+// Use `use` instead of `all("/*")` for Express 5 + path-to-regexp v8 compatibility
+router.use("/", toNodeHandler(auth));
+
+export default router;
