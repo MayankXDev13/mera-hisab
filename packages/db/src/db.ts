@@ -42,8 +42,6 @@ const postgresUrl = isValidUrl
   ? databaseUrl!
   : "postgres://postgres:postgres@localhost:5432/postgres";
 
-const client = postgres(postgresUrl, {
-  // pgbouncer transaction mode does not support prepared statements
-  prepare: !postgresUrl.includes("pgbouncer=true"),
-});
+// Disable prefetch as it is not supported for "Transaction" pool mode
+const client = postgres(postgresUrl, { prepare: false });
 export const db = drizzle({ client });

@@ -9,7 +9,6 @@ export default defineConfig({
   out: './drizzle',
   dialect: 'postgresql',
   dbCredentials: {
-    // migrations need session mode (prepared statements); transaction pooler breaks them
-    url: process.env.DIRECT_URL ?? process.env.DATABASE_URL!,
+    url: process.env.DATABASE_URL!,
   },
 });
