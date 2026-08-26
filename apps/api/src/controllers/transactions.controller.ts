@@ -5,24 +5,10 @@ import { db as _db } from "@repo/db";
 const db: any = _db;
 import { accounts, creditCards, customers, transactions, auditLogs } from "@repo/db/schema";
 import { toTransactionDto } from "../lib/dto.js";
-import { rupeesToPaise } from "@repo/schemas";
+import { resolveAmount } from "@repo/schemas";
 
 function getActor(req: Request): string | null {
   return (req as unknown as { user?: { id: string } }).user?.id ?? null;
-}
-
-function resolveAmount(body: { amountPaise?: number; amountRupees?: string | number }): number | null {
-  if (body.amountPaise !== undefined && body.amountRupees !== undefined) return null;
-  if (body.amountPaise !== undefined) {
-    if (!Number.isInteger(body.amountPaise) || body.amountPaise <= 0) return null;
-    return body.amountPaise;
-  }
-  if (body.amountRupees !== undefined) {
-    const paise = rupeesToPaise(body.amountRupees);
-    if (!Number.isInteger(paise) || paise <= 0) return null;
-    return paise;
-  }
-  return null;
 }
 
 export const createTransaction = async (req: Request, res: Response) => {
