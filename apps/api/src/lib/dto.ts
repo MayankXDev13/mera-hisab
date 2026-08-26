@@ -41,12 +41,9 @@ export function toCustomerDto(row: typeof customers.$inferSelect) {
   return {
     id: row.id,
     name: row.name,
-    username: row.username,
     email: row.email,
     phone: row.phone,
-    notes: row.notes,
     monthlyRateBps: row.monthlyRateBps,
-    status: row.status,
     createdAt: toIso(row.createdAt),
     updatedAt: toIso(row.updatedAt),
   };

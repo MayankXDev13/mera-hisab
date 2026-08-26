@@ -71,20 +71,14 @@ export default function CustomersPage() {
   const update = useUpdateCustomer();
   const [form, setForm] = useState<{
     name: string;
-    username: string;
     email: string;
     phone: string;
-    notes: string;
     monthlyRateBps: number;
-    status: "active" | "deactivated";
   }>({
     name: "",
-    username: "",
     email: "",
     phone: "",
-    notes: "",
     monthlyRateBps: 0,
-    status: "active",
   });
   const [editing, setEditing] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -109,7 +103,6 @@ export default function CustomersPage() {
             ...form,
             email: form.email || null,
             phone: form.phone || null,
-            notes: form.notes || null,
           },
         });
         toast.add({ title: "Customer updated", type: "success" });
@@ -119,18 +112,14 @@ export default function CustomersPage() {
           ...form,
           email: form.email || null,
           phone: form.phone || null,
-          notes: form.notes || null,
         });
         toast.add({ title: "Customer created", type: "success" });
       }
       setForm({
         name: "",
-        username: "",
         email: "",
         phone: "",
-        notes: "",
         monthlyRateBps: 250,
-        status: "active",
       });
       setOpen(false);
     } catch (err) {
@@ -165,12 +154,9 @@ export default function CustomersPage() {
               setEditing(null);
               setForm({
                 name: "",
-                username: "",
                 email: "",
                 phone: "",
-                notes: "",
                 monthlyRateBps: 250,
-                status: "active",
               });
             }
           }}
@@ -210,23 +196,7 @@ export default function CustomersPage() {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="username">Username *</Label>
-                  <Input
-                    id="username"
-                    name="username"
-                    required
-                    value={form.username}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, username: e.target.value }))
-                    }
-                    placeholder="ramesh.kumar"
-                    pattern="^[a-zA-Z0-9_.-]+$"
-                    title="Use only letters, numbers, underscores, dots, and hyphens."
-                    className="font-mono text-sm"
-                    autoComplete="username"
-                  />
-                </div>
+    
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
@@ -261,23 +231,7 @@ export default function CustomersPage() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="notes">Notes</Label>
-                <Textarea
-                  id="notes"
-                  name="notes"
-                  value={form.notes}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, notes: e.target.value }))
-                  }
-                  maxLength={200}
-                  className="min-h-20 resize-none"
-                  placeholder="Optional note..."
-                />
-                <div className="text-right text-xs text-muted-foreground">
-                  {form.notes.length}/200
-                </div>
-              </div>
+
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
@@ -302,27 +256,6 @@ export default function CustomersPage() {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="status">Status</Label>
-                  <Select
-                    value={form.status}
-                    onValueChange={(value) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        status: value as "active" | "deactivated",
-                      }))
-                    }
-                  >
-                    <SelectTrigger id="status">
-                      <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-
-                    <SelectContent>
-                      <SelectItem value="Active">Active</SelectItem>
-                      <SelectItem value="Deactivated">Deactivated</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
 
               <Button
@@ -531,12 +464,9 @@ export default function CustomersPage() {
                   onClick={() => {
                     setForm({
                       name: selected.name,
-                      username: selected.username,
                       email: selected.email ?? "",
                       phone: selected.phone ?? "",
-                      notes: selected.notes ?? "",
                       monthlyRateBps: selected.monthlyRateBps,
-                      status: selected.status,
                     });
                     setEditing(selected.id);
                     setOpen(true);

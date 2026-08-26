@@ -6,10 +6,8 @@ import type { Customer } from "@/lib/api/types";
 
 type CreateCustomerPayload = {
   name: string;
-  username: string;
   email?: string | null;
   phone?: string | null;
-  notes?: string | null;
   monthlyRateBps: number;
   status?: "active" | "deactivated";
 };
