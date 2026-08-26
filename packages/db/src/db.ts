@@ -6,7 +6,6 @@ import { auditLogs } from "./schema/auditLogs.js";
 import { user, session, account, verification } from "./schema/auth.js";
 import { creditCards } from "./schema/creditCards.js";
 import { customers } from "./schema/customers.js";
-import { monthlyCharges } from "./schema/monthlyCharges.js";
 import { transactions } from "./schema/transactions.js";
 
 const drizzleSchema = {
@@ -18,7 +17,6 @@ const drizzleSchema = {
   verification,
   creditCards,
   customers,
-  monthlyCharges,
   transactions,
 };
 

@@ -30,7 +30,6 @@ type CreateInput = {
   amountRupees?: string | number;
   occurredAt?: string | Date;
   note?: string | null;
-  monthlyChargeId?: string | null;
 };
 
 async function assertCustomerExists(db: DbClient, customerId: string) {
@@ -165,7 +164,6 @@ export async function createLedgerTransaction(
         occurredAt: new Date(occurredAtIso),
         note: input.note ?? null,
         createdBy: actorId,
-        monthlyChargeId: input.monthlyChargeId ?? null,
       })
       .returning();
     if (!row) throw new LedgerError("failed to create transaction", 500);

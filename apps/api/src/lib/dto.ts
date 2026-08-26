@@ -58,7 +58,6 @@ export function toTransactionDto(row: typeof transactions.$inferSelect) {
     note: row.note,
     createdBy: row.createdBy,
     reversedFromId: row.reversedFromId,
-    monthlyChargeId: row.monthlyChargeId,
     createdAt: toIso(row.createdAt),
   };
 }

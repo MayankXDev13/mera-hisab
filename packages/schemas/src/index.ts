@@ -4,3 +4,4 @@ export * from "./cards.js";
 export * from "./customers.js";
 export * from "./transactions.js";
 export * from "./validate.js";
+export * from "./openapi.js";

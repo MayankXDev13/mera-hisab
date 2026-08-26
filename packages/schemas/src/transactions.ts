@@ -14,7 +14,6 @@ export const createTransactionSchema = z
     amountRupees: z.union([z.string(), z.number()]).optional(),
     occurredAt: z.string().datetime().or(z.date()).optional(),
     note: z.string().max(2000).optional().nullable(),
-    monthlyChargeId: z.string().uuid().optional().nullable(),
   })
   .refine((v) => v.amountPaise !== undefined || v.amountRupees !== undefined, {
     message: "amountPaise or amountRupees is required",
