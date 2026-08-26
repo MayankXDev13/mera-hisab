@@ -1,6 +1,5 @@
 CREATE TYPE "funding_source_kind" AS ENUM('bank_account', 'credit_card');--> statement-breakpoint
 CREATE TYPE "funding_source_status" AS ENUM('active', 'deactivated');--> statement-breakpoint
-CREATE TYPE "customer_status" AS ENUM('active', 'deactivated');--> statement-breakpoint
 CREATE TYPE "transaction_direction" AS ENUM('debit', 'credit');--> statement-breakpoint
 CREATE TABLE "funding_sources" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -34,6 +33,7 @@ CREATE TABLE "account" (
 	"id" text PRIMARY KEY,
 	"account_id" text NOT NULL,
 	"provider_id" text NOT NULL,
+	"issuer" text NOT NULL,
 	"user_id" text NOT NULL,
 	"access_token" text,
 	"refresh_token" text,
@@ -80,15 +80,11 @@ CREATE TABLE "customers" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
 	"user_id" text NOT NULL,
 	"name" text NOT NULL,
-	"username" text NOT NULL,
 	"email" text,
 	"phone" text,
-	"notes" text,
 	"monthly_rate_bps" integer NOT NULL,
-	"status" "customer_status" DEFAULT 'active'::"customer_status" NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "customers_user_username_unique" UNIQUE("user_id","username"),
 	CONSTRAINT "customers_id_user_unique" UNIQUE("id","user_id"),
 	CONSTRAINT "customer_rate_bps_range" CHECK ("monthly_rate_bps" BETWEEN 0 AND 10000)
 );

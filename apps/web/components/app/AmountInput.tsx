@@ -27,7 +27,7 @@ export function AmountInput({
     const paise = rupeesToPaise(value);
     if (!Number.isFinite(paise) || paise <= 0) return { paise, valid: false, display: paise === 0 ? "Must be > 0" : "Invalid amount" };
     if (paise > MAX_PAISE_INT32) return { paise, valid: false, display: "Exceeds ₹2,14,74,836 limit (int32 paise)" };
-    return { paise, valid: true, display: `${formatRupees(paise)} • ${paise.toLocaleString("en-IN")} paise` };
+    return { paise, valid: true, display: formatRupees(paise) };
   }, [value]);
 
   return (
@@ -41,17 +41,12 @@ export function AmountInput({
           value={value}
           onChange={(e) => {
             const v = e.target.value;
-            // allow empty, digits, dot
             if (v === "" || /^\d*\.?\d{0,2}$/.test(v)) onChange(v);
           }}
           placeholder={placeholder}
           className="pl-7 font-mono"
         />
       </div>
-      {value.trim() && (
-        <p className={`text-xs ${parsed.valid ? "text-muted-foreground" : "text-destructive"}`}>{parsed.display}</p>
-      )}
-      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
 }

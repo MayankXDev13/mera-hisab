@@ -4,6 +4,7 @@ packages:
 allowBuilds:
   '@scarf/scarf': true
   esbuild: false
+  sharp: false
   unrs-resolver: false
 minimumReleaseAgeExclude:
   - '@types/node@26.3.0'
