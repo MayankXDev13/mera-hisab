@@ -42,13 +42,13 @@ export default function TransactionsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Ledger</h1>
-          <p className="text-sm text-muted-foreground">Single write path • Every rupee as paise • Perforated receipts • Reverse = compensating entry</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Ledger</h1>
+          <p className="text-sm text-muted-foreground">All your transaction entries.</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger render={<Button><RiAddLine /> New entry</Button>} />
           <DialogContent className="max-w-lg max-h-[90vh] overflow-auto">
-            <DialogHeader><DialogTitle>New ledger entry</DialogTitle><DialogDescription>Select customer & source • amount single ₹ input</DialogDescription></DialogHeader>
+            <DialogHeader><DialogTitle>New ledger entry</DialogTitle><DialogDescription>Record a new debit or credit entry.</DialogDescription></DialogHeader>
             <TransactionForm onDone={() => setOpen(false)} />
           </DialogContent>
         </Dialog>
@@ -122,7 +122,7 @@ export default function TransactionsPage() {
       <Card>
         <CardHeader className="pb-2 flex flex-row items-center justify-between">
           <CardTitle className="text-sm">Transactions</CardTitle>
-          <span className="text-xs text-muted-foreground">{tx.isFetching ? "Refreshing…" : "staleTime:0"}</span>
+          {tx.isFetching && <span className="text-xs text-muted-foreground">Refreshing…</span>}
         </CardHeader>
         <CardContent className="p-0">
           {tx.isLoading ? (
@@ -147,7 +147,7 @@ export default function TransactionsPage() {
                 <TableBody>
                   {tx.data.transactions.map((t) => {
                     return (
-                      <TableRow key={t.id} className="perforated">
+                      <TableRow key={t.id}>
                         <TableCell className="text-xs whitespace-nowrap">{formatDate(t.occurredAt)}</TableCell>
                         <TableCell className="text-xs">{customerMap.get(t.customerId) ?? t.customerId.slice(0, 8)}</TableCell>
                         <TableCell>
@@ -155,7 +155,7 @@ export default function TransactionsPage() {
                             {t.direction}
                           </Badge>
                         </TableCell>
-                        <TableCell className={`font-mono text-sm ${t.direction === "debit" ? "text-[oklch(0.55_0.2_25)]" : "text-[oklch(0.38_0.12_150)]"}`}>
+                        <TableCell className={`font-mono text-sm ${t.direction === "debit" ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"}`}>
                           {t.direction === "debit" ? "−" : "+"}{formatRupees(t.amountPaise)}
                         </TableCell>
                         <TableCell className="text-xs max-w-[160px] truncate">
@@ -180,8 +180,6 @@ export default function TransactionsPage() {
           )}
         </CardContent>
       </Card>
-
-      <p className="text-xs text-muted-foreground text-center">Pagination and date filters are pushed to SQL — use narrow filters for faster queries.</p>
     </div>
   );
 }

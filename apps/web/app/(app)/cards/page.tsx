@@ -71,13 +71,13 @@ export default function CardsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Cards</h1>
-          <p className="text-sm text-muted-foreground">Credit cards • used vs available • only ledger mutates used</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Cards</h1>
+          <p className="text-sm text-muted-foreground">Manage your credit cards and track utilization.</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger render={<Button><RiAddLine /> New card</Button>} />
           <DialogContent>
-            <DialogHeader><DialogTitle>New card</DialogTitle><DialogDescription>Single rupee input for total limit</DialogDescription></DialogHeader>
+            <DialogHeader><DialogTitle>New card</DialogTitle><DialogDescription>Add a new credit card to track.</DialogDescription></DialogHeader>
             <form onSubmit={submitCreate} className="space-y-4">
               <div className="space-y-2"><Label>Issuer *</Label><Input required value={form.issuer} onChange={(e) => setForm({ ...form, issuer: e.target.value })} placeholder="HDFC" /></div>
               <div className="space-y-2"><Label>Last 4 *</Label><Input required value={form.last4} onChange={(e) => setForm({ ...form, last4: e.target.value.replace(/\D/g, "").slice(0, 4) })} placeholder="4521" maxLength={4} className="font-mono" /></div>
@@ -137,7 +137,7 @@ export default function CardsPage() {
 
       <Dialog open={Boolean(editingId)} onOpenChange={(v) => !v && setEditingId(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Edit card</DialogTitle><DialogDescription>Only patch changed fields • lowering limit below used makes available negative</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>Edit card</DialogTitle><DialogDescription>Update card details.</DialogDescription></DialogHeader>
           {editingId && (
             <form onSubmit={submitEdit} className="space-y-3">
               <div className="space-y-2"><Label>Issuer</Label><Input value={editForm.issuer} onChange={(e) => setEditForm({ ...editForm, issuer: e.target.value })} /></div>

@@ -168,10 +168,9 @@ export function TransactionForm({
         <Textarea id="note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Chai advance, etc. (max 2000)" maxLength={2000} />
       </div>
 
-      <Button type="submit" className="w-full" disabled={create.isPending}>
-        {create.isPending ? "Saving…" : "Debit — record"}
+      <Button type="submit" className="w-full rounded-full h-10" disabled={create.isPending}>
+        {create.isPending ? "Saving…" : "Record entry"}
       </Button>
-      <p className="text-xs text-muted-foreground text-center">Saved as integer paise • staleTime:0 refetch on focus</p>
     </form>
   );
 }
