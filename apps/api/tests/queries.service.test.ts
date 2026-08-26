@@ -8,6 +8,8 @@ const { stores, fakeTables, fakeDb, fns } = vi.hoisted(() => {
     customers: [],
     transactions: [],
     auditLogs: [],
+    fundingSources: [],
+    transactionAllocations: [],
   };
   function makeTable(name: string) {
     const table: any = { _name: name };
@@ -24,6 +26,8 @@ const { stores, fakeTables, fakeDb, fns } = vi.hoisted(() => {
     customers: makeTable("customers"),
     transactions: makeTable("transactions"),
     auditLogs: makeTable("auditLogs"),
+    fundingSources: makeTable("fundingSources"),
+    transactionAllocations: makeTable("transactionAllocations"),
   };
   const fns: any = {
     eq: (col: any, value: any) => ({ _kind: "eq", col, value }),
@@ -32,103 +36,84 @@ const { stores, fakeTables, fakeDb, fns } = vi.hoisted(() => {
     and: (...conds: any[]) => ({ _kind: "and", conds }),
     desc: (col: any) => ({ _kind: "desc", col }),
     count: () => ({ _kind: "count" }),
-    sql: Object.assign((strings: TemplateStringsArray, ...values: any[]) => ({ _kind: "sql", strings, values, as: (alias: string) => ({ _kind: "sql", strings, values, alias }) }), {
-      raw: (s: string) => s,
-    }),
+    sql: Object.assign(
+      (strings: TemplateStringsArray, ...values: any[]) => ({
+        _kind: "sql",
+        strings,
+        values,
+        as: (alias: string) => ({ _kind: "sql", strings, values, alias }),
+      }),
+      { raw: (s: string) => s },
+    ),
     inArray: (col: any, values: any[]) => ({ _kind: "inArray", col, values }),
   };
   function getStore(table: any) {
-    const name = table?._name;
-    const map: Record<string, string> = {
-      accounts: "accounts",
-      creditCards: "creditCards",
-      customers: "customers",
-      transactions: "transactions",
-      auditLogs: "auditLogs",
-    };
-    return stores[map[name] ?? name] ?? [];
+    return stores[table?._name] ?? [];
   }
   function matches(row: any, cond: any): boolean {
     if (!cond) return true;
     if (cond._kind === "eq") return row[cond.col] === cond.value;
-    if (cond._kind === "gte") return row[cond.col] >= cond.value;
-    if (cond._kind === "lte") return row[cond.col] <= cond.value;
+    if (cond._kind === "gte") return new Date(row[cond.col]) >= cond.value;
+    if (cond._kind === "lte") return new Date(row[cond.col]) <= cond.value;
     if (cond._kind === "and") return cond.conds.every((c: any) => matches(row, c));
     if (cond._kind === "inArray") return cond.values.includes(row[cond.col]);
-    if (cond._kind === "sql") {
-      // for our SUM tests, we treat sql filter as pass-all; actual aggregation done in select handler
-      return true;
-    }
+    if (cond._kind === "sql") return true;
+    if (cond._kind === "count") return true;
     return true;
   }
   function sortRows(rows: any[], order: any) {
-    if (!order) return rows;
-    if (order._kind !== "desc") return rows;
+    if (!order || order._kind !== "desc") return rows;
     const col = order.col;
     return [...rows].sort((a, b) => {
-      const av = a[col];
-      const bv = b[col];
+      const av = a[col], bv = b[col];
       if (av instanceof Date && bv instanceof Date) return bv.getTime() - av.getTime();
-      return 0;
+      return av > bv ? -1 : av < bv ? 1 : 0;
     });
   }
   function makeSelectBuilder(selectArg: any) {
-    // select() with no args or with {value: count()} or with {outstandingPaise: sql``} etc.
     let table: any = null;
     let whereCond: any = null;
     let order: any = null;
     let limitN: number | null = null;
     let offsetN = 0;
     let groupByCol: any = null;
-    const builder: any = {
-      from(t: any) { table = t; return builder; },
-      where(c: any) { whereCond = c; return builder; },
-      orderBy(o: any) { order = o; return builder; },
-      limit(n: number) { limitN = n; return builder; },
-      offset(n: number) { offsetN = n; return builder; },
-      groupBy(c: any) { groupByCol = c; return builder; },
+    const b: any = {
+      from(t: any) { table = t; return b; },
+      where(c: any) { whereCond = c; return b; },
+      orderBy(o: any) { order = o; return b; },
+      limit(n: number) { limitN = n; return b; },
+      offset(n: number) { offsetN = n; return b; },
+      groupBy(c: any) { groupByCol = c; return b; },
       then(resolve: any) {
         let rows = [...getStore(table)];
         if (whereCond) rows = rows.filter((r) => matches(r, whereCond));
-        // handle aggregation selects
         if (selectArg && typeof selectArg === "object" && !Array.isArray(selectArg)) {
           const keys = Object.keys(selectArg);
-          // count
+          // count(*) select
           if (keys.length === 1 && keys[0] === "value" && selectArg.value?._kind === "count") {
             resolve([{ value: rows.length }]);
             return;
           }
-          // SUM outstanding
-          if (keys.includes("outstandingPaise")) {
-            if (groupByCol) {
-              // group by customerId
-              const colName = typeof groupByCol === "string" ? groupByCol : groupByCol;
-              const groups: Record<string, number> = {};
-              for (const r of rows) {
-                const key = r[colName] ?? r.customerId;
-                const delta = r.direction === "debit" ? r.amountPaise : -r.amountPaise;
-                groups[key] = (groups[key] ?? 0) + delta;
-              }
-              const out = Object.entries(groups).map(([customerId, outstandingPaise]) => ({ customerId, outstandingPaise }));
-              resolve(out);
-              return;
-            } else {
-              let sum = 0;
-              for (const r of rows) sum += r.direction === "debit" ? r.amountPaise : -r.amountPaise;
-              resolve([{ outstandingPaise: sum }]);
-              return;
-            }
-          }
-          if (keys.includes("customerId") && keys.includes("outstandingPaise")) {
-            // batch case already handled above
-            const colName = typeof groupByCol === "string" ? groupByCol : groupByCol;
+          // SUM-style aggregate with groupBy
+          if (groupByCol && keys.includes("outstandingPaise")) {
             const groups: Record<string, number> = {};
             for (const r of rows) {
-              const key = r[colName] ?? r.customerId;
-              const delta = r.direction === "debit" ? r.amountPaise : -r.amountPaise;
-              groups[key] = (groups[key] ?? 0) + delta;
+              const k = r[groupByCol];
+              groups[k] = (groups[k] ?? 0) + (r.direction === "debit" ? r.amountPaise : -r.amountPaise);
             }
-            resolve(Object.entries(groups).map(([customerId, outstandingPaise]) => ({ customerId, outstandingPaise })));
+            resolve(Object.entries(groups).map(([customerId2, outstandingPaise]) => ({ customerId: customerId2, outstandingPaise })));
+            return;
+          }
+          if (keys.includes("total")) {
+            const groups: Record<string, number> = {};
+            for (const r of rows) groups[r[groupByCol]] = (groups[r[groupByCol]] ?? 0) + r.amountPaise;
+            resolve(Object.entries(groups).map(([sourceId, total]) => ({ sourceId, total })));
+            return;
+          }
+          if (keys.includes("outstandingPaise")) {
+            let sum = 0;
+            for (const r of rows) sum += r.direction === "debit" ? r.amountPaise : -r.amountPaise;
+            resolve([{ outstandingPaise: sum }]);
             return;
           }
         }
@@ -138,7 +123,7 @@ const { stores, fakeTables, fakeDb, fns } = vi.hoisted(() => {
         resolve(rows);
       },
     };
-    return builder;
+    return b;
   }
   const fakeDb: any = {
     select(arg?: any) { return makeSelectBuilder(arg); },
@@ -159,15 +144,25 @@ const { stores, fakeTables, fakeDb, fns } = vi.hoisted(() => {
     update(table: any) {
       let setVals: any = {};
       let whereCond: any = null;
+      const run = () => {
+        const store = getStore(table);
+        const matched = store.filter((r) => matches(r, whereCond));
+        for (const r of matched) Object.assign(r, setVals);
+        return matched;
+      };
       const b: any = {
         set(v: any) { setVals = v; return b; },
-        where(c: any) { whereCond = c; return b; },
-        returning() {
-          const store = getStore(table);
-          const matched = store.filter((r) => matches(r, whereCond));
-          for (const r of matched) Object.assign(r, setVals);
-          return Promise.resolve(matched);
+        where(c: any) {
+          whereCond = c;
+          const out: any = {
+            returning() { return Promise.resolve(run()); },
+          };
+          out.then = (res: any, rej: any) => {
+            try { res(run()); } catch (e) { rej?.(e); }
+          };
+          return out;
         },
+        returning() { return Promise.resolve(run()); },
       };
       return b;
     },
@@ -182,86 +177,86 @@ vi.mock("@repo/db", async (importOriginal) => {
 });
 vi.mock("@repo/db/schema", async () => fakeTables);
 
-const { listTransactionsQuery, getOutstandingQuery, getOutstandingBatchQuery } = await import("../src/services/queries.service.js");
+const { listTransactionsQuery, getOutstandingQuery, getOutstandingBatchQuery, listFundingSourcesQuery } =
+  await import("../src/services/queries.service.js");
 
-describe("queries.service — SQL pushdown", () => {
+const USER = "user-1";
+
+function seedDebit(customerId: string, sourceId: string | null, amountPaise: number, occurredAt?: Date) {
+  stores.transactions.push({
+    id: randomUUID(), userId: USER, direction: "debit", amountPaise,
+    customerId, sourceId, occurredAt: occurredAt ?? new Date(), note: null, createdBy: USER, createdAt: new Date(),
+  });
+}
+
+describe("queries.service — scoped reads", () => {
   beforeEach(() => {
     for (const k of Object.keys(stores)) stores[k].length = 0;
   });
 
-  it("listTransactions pushes from/to to where and uses limit/offset with count", async () => {
+  it("list pushes from/to to where with count and limit/offset", async () => {
     const cid = randomUUID();
-    stores.customers.push({ id: cid });
+    stores.customers.push({ id: cid, userId: USER });
     const base = new Date("2025-01-01T00:00:00Z");
     for (let i = 0; i < 60; i++) {
-      stores.transactions.push({
-        id: randomUUID(),
-        customerId: cid,
-        direction: i % 2 === 0 ? "debit" : "credit",
-        amountPaise: 1000,
-        sourceType: "account",
-        sourceId: randomUUID(),
-        occurredAt: new Date(base.getTime() + i * 86400000),
-        note: null,
-        createdBy: null,
-        reversedFromId: null,
-        
-        createdAt: new Date(),
-      });
+      seedDebit(cid, randomUUID(), 1000, new Date(base.getTime() + i * 86400000));
     }
     const from = new Date("2025-01-10T00:00:00Z").toISOString();
     const to = new Date("2025-01-20T00:00:00Z").toISOString();
-    const { transactions: rows, total } = await listTransactionsQuery({ from, to, page: 1, limit: 5, customerId: cid }, { db: fakeDb });
-    // from/to filter: Jan 10-20 inclusive = 11 days, so total 11, page 1 limit 5 => 5 rows
-    expect(total).toBe(11);
-    expect(rows.length).toBe(5);
-    // pagination page 2
-    const p2 = await listTransactionsQuery({ from, to, page: 2, limit: 5, customerId: cid }, { db: fakeDb });
-    expect(p2.transactions.length).toBe(5);
-    const p3 = await listTransactionsQuery({ from, to, page: 3, limit: 5, customerId: cid }, { db: fakeDb });
+    const p1 = await listTransactionsQuery(USER, { customerId: cid, from, to, page: 1, limit: 5 }, { db: fakeDb });
+    expect(p1.total).toBe(11);
+    expect(p1.transactions.length).toBe(5);
+    const p3 = await listTransactionsQuery(USER, { customerId: cid, from, to, page: 3, limit: 5 }, { db: fakeDb });
     expect(p3.transactions.length).toBe(1);
   });
 
-  it("outstanding uses SUM not loop, no rows returns 0", async () => {
+  it("getOutstanding sums debits minus credits per user scope", async () => {
     const cid = randomUUID();
-    stores.customers.push({ id: cid });
-    // no transactions
-    const val0 = await getOutstandingQuery(cid, { db: fakeDb });
-    expect(val0).toBe(0);
-
-    stores.transactions.push(
-      { id: randomUUID(), customerId: cid, direction: "debit", amountPaise: 50000, sourceType: "account", sourceId: randomUUID(), occurredAt: new Date(), note: null, createdBy: null, reversedFromId: null, createdAt: new Date() },
-      { id: randomUUID(), customerId: cid, direction: "credit", amountPaise: 20000, sourceType: "account", sourceId: randomUUID(), occurredAt: new Date(), note: null, createdBy: null, reversedFromId: null, createdAt: new Date() }
-    );
-    const val = await getOutstandingQuery(cid, { db: fakeDb });
-    expect(val).toBe(30000);
+    stores.customers.push({ id: cid, userId: USER });
+    expect(await getOutstandingQuery(USER, cid, { db: fakeDb })).toBe(0);
+    seedDebit(cid, randomUUID(), 50000);
+    stores.transactions.push({
+      id: randomUUID(), userId: USER, direction: "credit", amountPaise: 20000,
+      customerId: cid, sourceId: null, occurredAt: new Date(), note: null, createdBy: USER, createdAt: new Date(),
+    });
+    expect(await getOutstandingQuery(USER, cid, { db: fakeDb })).toBe(30000);
   });
 
-  it("batch outstanding returns map with zeros for missing", async () => {
-    const cid1 = randomUUID();
-    const cid2 = randomUUID();
-    const cid3 = randomUUID();
-    stores.customers.push({ id: cid1 }, { id: cid2 }, { id: cid3 });
-    stores.transactions.push(
-      { id: randomUUID(), customerId: cid1, direction: "debit", amountPaise: 10000, sourceType: "account", sourceId: randomUUID(), occurredAt: new Date(), note: null, createdBy: null, reversedFromId: null, createdAt: new Date() },
-      { id: randomUUID(), customerId: cid1, direction: "credit", amountPaise: 4000, sourceType: "account", sourceId: randomUUID(), occurredAt: new Date(), note: null, createdBy: null, reversedFromId: null, createdAt: new Date() }
-    );
-    const map = await getOutstandingBatchQuery([cid1, cid2, cid3], { db: fakeDb });
-    expect(map[cid1]).toBe(6000);
-    expect(map[cid2]).toBe(0);
-    expect(map[cid3]).toBe(0);
+  it("batch outstanding returns zeros for missing ids", async () => {
+    const c1 = randomUUID(), c2 = randomUUID(), c3 = randomUUID();
+    stores.customers.push({ id: c1, userId: USER }, { id: c2, userId: USER }, { id: c3, userId: USER });
+    seedDebit(c1, randomUUID(), 10000);
+    seedDebit(c1, randomUUID(), 4000);
+    const map = await getOutstandingBatchQuery(USER, [c1, c2, c3], { db: fakeDb });
+    expect(map[c1]).toBe(14000);
+    expect(map[c2]).toBe(0);
+    expect(map[c3]).toBe(0);
   });
 
-  it("sort is desc occurredAt", async () => {
+  it("sort is desc occurredAt and other users' rows are invisible", async () => {
     const cid = randomUUID();
-    stores.customers.push({ id: cid });
+    stores.customers.push({ id: cid, userId: USER });
     const d1 = new Date("2025-01-01T00:00:00Z");
-    const d2 = new Date("2025-01-02T00:00:00Z");
     const d3 = new Date("2025-01-03T00:00:00Z");
-    for (const d of [d1, d2, d3]) {
-      stores.transactions.push({ id: randomUUID(), customerId: cid, direction: "debit", amountPaise: 100, sourceType: "account", sourceId: randomUUID(), occurredAt: d, note: null, createdBy: null, reversedFromId: null, createdAt: new Date() });
-    }
-    const { transactions: rows } = await listTransactionsQuery({ page: 1, limit: 10 }, { db: fakeDb });
-    expect(rows[0].occurredAt.getTime()).toBe(d3.getTime());
+    seedDebit(cid, randomUUID(), 100, d1);
+    // another tenant's txn must not leak in
+    stores.transactions.push({
+      id: randomUUID(), userId: "other-user", direction: "debit", amountPaise: 999999,
+      customerId: cid, sourceId: randomUUID(), occurredAt: d3, note: null, createdBy: "other-user", createdAt: new Date(),
+    });
+    seedDebit(cid, randomUUID(), 100, new Date("2025-01-02T00:00:00Z"));
+    const { transactions: rows } = await listTransactionsQuery(USER, { page: 1, limit: 10 }, { db: fakeDb });
+    expect(rows).toHaveLength(2);
+    expect(new Date(rows[0].occurredAt).getTime()).toBe(new Date("2025-01-02T00:00:00Z").getTime());
+  });
+
+  it("funding sources list filters by kind", async () => {
+    stores.fundingSources.push(
+      { id: randomUUID(), userId: USER, kind: "bank_account", status: "active", createdAt: new Date() },
+      { id: randomUUID(), userId: USER, kind: "credit_card", status: "active", createdAt: new Date() },
+      { id: randomUUID(), userId: "other-user", kind: "bank_account", status: "active", createdAt: new Date() },
+    );
+    const banks = await listFundingSourcesQuery(USER, "bank_account", { db: fakeDb });
+    expect(banks).toHaveLength(1);
   });
 });

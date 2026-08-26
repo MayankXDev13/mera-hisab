@@ -1,26 +1,17 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "426e1857-833d-4751-a447-86a5091d29b1",
+  "id": "f008d552-3140-4c92-ae5e-75636667456e",
   "prevIds": [
     "00000000-0000-0000-0000-000000000000"
   ],
   "ddl": [
     {
       "values": [
-        "active",
-        "deactivated"
+        "bank_account",
+        "credit_card"
       ],
-      "name": "account_status",
-      "entityType": "enums",
-      "schema": "public"
-    },
-    {
-      "values": [
-        "savings",
-        "current"
-      ],
-      "name": "account_type",
+      "name": "funding_source_kind",
       "entityType": "enums",
       "schema": "public"
     },
@@ -29,7 +20,7 @@
         "active",
         "deactivated"
       ],
-      "name": "card_status",
+      "name": "funding_source_status",
       "entityType": "enums",
       "schema": "public"
     },
@@ -44,15 +35,6 @@
     },
     {
       "values": [
-        "account",
-        "credit_card"
-      ],
-      "name": "source_type",
-      "entityType": "enums",
-      "schema": "public"
-    },
-    {
-      "values": [
         "debit",
         "credit"
       ],
@@ -62,7 +44,7 @@
     },
     {
       "isRlsEnabled": false,
-      "name": "accounts",
+      "name": "funding_sources",
       "entityType": "tables",
       "schema": "public"
     },
@@ -98,13 +80,13 @@
     },
     {
       "isRlsEnabled": false,
-      "name": "credit_cards",
+      "name": "customers",
       "entityType": "tables",
       "schema": "public"
     },
     {
       "isRlsEnabled": false,
-      "name": "customers",
+      "name": "transaction_allocations",
       "entityType": "tables",
       "schema": "public"
     },
@@ -125,7 +107,33 @@
       "name": "id",
       "entityType": "columns",
       "schema": "public",
-      "table": "accounts"
+      "table": "funding_sources"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "funding_sources"
+    },
+    {
+      "type": "funding_source_kind",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "kind",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "funding_sources"
     },
     {
       "type": "text",
@@ -138,49 +146,10 @@
       "name": "name",
       "entityType": "columns",
       "schema": "public",
-      "table": "accounts"
+      "table": "funding_sources"
     },
     {
-      "type": "account_type",
-      "typeSchema": "public",
-      "notNull": true,
-      "dimensions": 0,
-      "default": "'savings'",
-      "generated": null,
-      "identity": null,
-      "name": "type",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "accounts"
-    },
-    {
-      "type": "integer",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "opening_balance_paise",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "accounts"
-    },
-    {
-      "type": "integer",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "current_balance_paise",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "accounts"
-    },
-    {
-      "type": "account_status",
+      "type": "funding_source_status",
       "typeSchema": "public",
       "notNull": true,
       "dimensions": 0,
@@ -190,7 +159,85 @@
       "name": "status",
       "entityType": "columns",
       "schema": "public",
-      "table": "accounts"
+      "table": "funding_sources"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "opening_balance_paise",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "funding_sources"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "current_balance_paise",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "funding_sources"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "issuer",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "funding_sources"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "last4",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "funding_sources"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "total_limit_paise",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "funding_sources"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "used_paise",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "funding_sources"
     },
     {
       "type": "timestamp with time zone",
@@ -203,7 +250,7 @@
       "name": "created_at",
       "entityType": "columns",
       "schema": "public",
-      "table": "accounts"
+      "table": "funding_sources"
     },
     {
       "type": "timestamp with time zone",
@@ -216,7 +263,7 @@
       "name": "updated_at",
       "entityType": "columns",
       "schema": "public",
-      "table": "accounts"
+      "table": "funding_sources"
     },
     {
       "type": "uuid",
@@ -775,7 +822,7 @@
       "name": "id",
       "entityType": "columns",
       "schema": "public",
-      "table": "credit_cards"
+      "table": "customers"
     },
     {
       "type": "text",
@@ -785,98 +832,7 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "issuer",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "credit_cards"
-    },
-    {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "last4",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "credit_cards"
-    },
-    {
-      "type": "integer",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "total_limit_paise",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "credit_cards"
-    },
-    {
-      "type": "integer",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "0",
-      "generated": null,
-      "identity": null,
-      "name": "used_paise",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "credit_cards"
-    },
-    {
-      "type": "card_status",
-      "typeSchema": "public",
-      "notNull": true,
-      "dimensions": 0,
-      "default": "'active'",
-      "generated": null,
-      "identity": null,
-      "name": "status",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "credit_cards"
-    },
-    {
-      "type": "timestamp with time zone",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "now()",
-      "generated": null,
-      "identity": null,
-      "name": "created_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "credit_cards"
-    },
-    {
-      "type": "timestamp with time zone",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "now()",
-      "generated": null,
-      "identity": null,
-      "name": "updated_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "credit_cards"
-    },
-    {
-      "type": "uuid",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "gen_random_uuid()",
-      "generated": null,
-      "identity": null,
-      "name": "id",
+      "name": "user_id",
       "entityType": "columns",
       "schema": "public",
       "table": "customers"
@@ -1009,6 +965,110 @@
       "name": "id",
       "entityType": "columns",
       "schema": "public",
+      "table": "transaction_allocations"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "user_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "transaction_allocations"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "transaction_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "transaction_allocations"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "customer_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "transaction_allocations"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "transaction_allocations"
+    },
+    {
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "amount_paise",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "transaction_allocations"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "transaction_allocations"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "gen_random_uuid()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "transactions"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "user_id",
+      "entityType": "columns",
+      "schema": "public",
       "table": "transactions"
     },
     {
@@ -1051,22 +1111,9 @@
       "table": "transactions"
     },
     {
-      "type": "source_type",
-      "typeSchema": "public",
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "source_type",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "transactions"
-    },
-    {
       "type": "uuid",
       "typeSchema": null,
-      "notNull": true,
+      "notNull": false,
       "dimensions": 0,
       "default": null,
       "generated": null,
@@ -1116,19 +1163,6 @@
       "table": "transactions"
     },
     {
-      "type": "uuid",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "reversed_from_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "transactions"
-    },
-    {
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": true,
@@ -1140,6 +1174,34 @@
       "entityType": "columns",
       "schema": "public",
       "table": "transactions"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "user_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "kind",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "funding_sources_user_kind_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "funding_sources"
     },
     {
       "nameExplicit": true,
@@ -1257,6 +1319,34 @@
       "nameExplicit": true,
       "columns": [
         {
+          "value": "user_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "customers_user_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "customers"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "user_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
           "value": "customer_id",
           "isExpression": false,
           "asc": true,
@@ -1269,7 +1359,56 @@
       "with": "",
       "method": "btree",
       "concurrently": false,
-      "name": "transactions_customer_idx",
+      "name": "alloc_user_customer_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "transaction_allocations"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "source_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "alloc_source_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "transaction_allocations"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "user_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "\"occurred_at\" DESC",
+          "isExpression": true,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "transactions_user_occurred_idx",
       "entityType": "indexes",
       "schema": "public",
       "table": "transactions"
@@ -1278,12 +1417,33 @@
       "nameExplicit": true,
       "columns": [
         {
-          "value": "source_type",
+          "value": "user_id",
           "isExpression": false,
           "asc": true,
           "nullsFirst": false,
           "opclass": null
         },
+        {
+          "value": "customer_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "transactions_user_customer_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "transactions"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
         {
           "value": "source_id",
           "isExpression": false,
@@ -1301,6 +1461,23 @@
       "entityType": "indexes",
       "schema": "public",
       "table": "transactions"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "user",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "funding_sources_user_id_user_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "funding_sources"
     },
     {
       "nameExplicit": false,
@@ -1339,16 +1516,126 @@
     {
       "nameExplicit": false,
       "columns": [
-        "customer_id"
+        "user_id"
       ],
       "schemaTo": "public",
-      "tableTo": "customers",
+      "tableTo": "user",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "customers_user_id_user_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "customers"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "user",
       "columnsTo": [
         "id"
       ],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
-      "name": "transactions_customer_id_customers_id_fkey",
+      "name": "transaction_allocations_user_id_user_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "transaction_allocations"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "transaction_id",
+        "user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "transactions",
+      "columnsTo": [
+        "id",
+        "user_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "name": "alloc_txn_tenant_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "transaction_allocations"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "source_id",
+        "user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "funding_sources",
+      "columnsTo": [
+        "id",
+        "user_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "alloc_source_tenant_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "transaction_allocations"
+    },
+    {
+      "nameExplicit": false,
+      "columns": [
+        "user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "user",
+      "columnsTo": [
+        "id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "transactions_user_id_user_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "transactions"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "customer_id",
+        "user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "customers",
+      "columnsTo": [
+        "id",
+        "user_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "txn_customer_tenant_fk",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "transactions"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "source_id",
+        "user_id"
+      ],
+      "schemaTo": "public",
+      "tableTo": "funding_sources",
+      "columnsTo": [
+        "id",
+        "user_id"
+      ],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
+      "name": "txn_source_tenant_fk",
       "entityType": "fks",
       "schema": "public",
       "table": "transactions"
@@ -1358,9 +1645,9 @@
         "id"
       ],
       "nameExplicit": false,
-      "name": "accounts_pkey",
+      "name": "funding_sources_pkey",
       "schema": "public",
-      "table": "accounts",
+      "table": "funding_sources",
       "entityType": "pks"
     },
     {
@@ -1418,9 +1705,9 @@
         "id"
       ],
       "nameExplicit": false,
-      "name": "credit_cards_pkey",
+      "name": "customers_pkey",
       "schema": "public",
-      "table": "credit_cards",
+      "table": "customers",
       "entityType": "pks"
     },
     {
@@ -1428,9 +1715,9 @@
         "id"
       ],
       "nameExplicit": false,
-      "name": "customers_pkey",
+      "name": "transaction_allocations_pkey",
       "schema": "public",
-      "table": "customers",
+      "table": "transaction_allocations",
       "entityType": "pks"
     },
     {
@@ -1442,6 +1729,66 @@
       "schema": "public",
       "table": "transactions",
       "entityType": "pks"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "id",
+        "user_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "funding_sources_id_user_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "funding_sources"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "user_id",
+        "username"
+      ],
+      "nullsNotDistinct": false,
+      "name": "customers_user_username_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "customers"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "id",
+        "user_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "customers_id_user_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "customers"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "transaction_id",
+        "source_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "alloc_txn_source_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "transaction_allocations"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        "id",
+        "user_id"
+      ],
+      "nullsNotDistinct": false,
+      "name": "transactions_id_user_unique",
+      "entityType": "uniques",
+      "schema": "public",
+      "table": "transactions"
     },
     {
       "nameExplicit": false,
@@ -1466,15 +1813,32 @@
       "entityType": "uniques"
     },
     {
-      "nameExplicit": false,
-      "columns": [
-        "username"
-      ],
-      "nullsNotDistinct": false,
-      "name": "customers_username_key",
+      "value": "\"monthly_rate_bps\" BETWEEN 0 AND 10000",
+      "name": "customer_rate_bps_range",
+      "entityType": "checks",
       "schema": "public",
-      "table": "customers",
-      "entityType": "uniques"
+      "table": "customers"
+    },
+    {
+      "value": "\"amount_paise\" > 0",
+      "name": "alloc_amount_positive",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "transaction_allocations"
+    },
+    {
+      "value": "(\"direction\" = 'debit' AND \"source_id\" IS NOT NULL) OR (\"direction\" = 'credit' AND \"source_id\" IS NULL)",
+      "name": "txn_direction_source_shape",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "transactions"
+    },
+    {
+      "value": "\"amount_paise\" > 0",
+      "name": "txn_amount_positive",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "transactions"
     }
   ],
   "renames": []

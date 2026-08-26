@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createAccountSchema, updateAccountSchema } from "./accounts.js";
+import { createBankAccountSchema as createAccountSchema, updateBankAccountSchema as updateAccountSchema } from "./accounts.js";
 import { createCardSchema, updateCardSchema } from "./cards.js";
 import { createCustomerSchema, updateCustomerSchema } from "./customers.js";
 import { createTransactionSchema, transactionFilterQuerySchema } from "./transactions.js";
@@ -10,7 +10,6 @@ type JsonSchemaObject = Record<string, unknown>;
 function toOpenApiSchema(schema: z.core.$ZodType): JsonSchemaObject {
   const json = z.toJSONSchema(schema, { io: "input", unrepresentable: "any" }) as JsonSchemaObject;
   delete json.$schema;
-  // json schema type integer -> openapi integer (same), nullable handled via anyOf in v4 output
   return json;
 }
 
@@ -37,7 +36,7 @@ export const responseSchemas = {
     properties: {
       id: { type: "string", format: "uuid" },
       name: { type: "string" },
-      type: { type: "string", enum: ["savings", "current"] },
+      kind: { type: "string", enum: ["bank_account", "credit_card"] },
       openingBalancePaise: { type: "integer" },
       currentBalancePaise: { type: "integer" },
       status: { type: "string", enum: ["active", "deactivated"] },
@@ -81,12 +80,10 @@ export const responseSchemas = {
       direction: { type: "string", enum: ["debit", "credit"] },
       amountPaise: { type: "integer" },
       customerId: { type: "string", format: "uuid" },
-      sourceType: { type: "string", enum: ["account", "credit_card"] },
-      sourceId: { type: "string", format: "uuid" },
+      sourceId: { type: "string", format: "uuid", description: "funding_sources.id (bank account or credit card)" },
       occurredAt: isoString,
       note: { type: "string", nullable: true },
       createdBy: { type: "string", nullable: true },
-      reversedFromId: { type: "string", nullable: true, format: "uuid" },
       createdAt: isoString,
     },
   },

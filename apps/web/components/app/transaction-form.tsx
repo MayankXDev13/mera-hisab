@@ -36,7 +36,7 @@ export function TransactionForm({
   const create = useCreateTransaction();
 
   const [customerId, setCustomerId] = useState(defaultCustomerId ?? "");
-  const [direction, setDirection] = useState<"debit" | "credit">("debit");
+  const direction = "debit" as const;
   const [sourceType, setSourceType] = useState<"account" | "credit_card">("account");
   const [sourceId, setSourceId] = useState("");
   const [amountRupees, setAmountRupees] = useState("");
@@ -94,7 +94,7 @@ export function TransactionForm({
         note: note || null,
         occurredAt: occurredAt ? new Date(occurredAt).toISOString() : undefined,
       });
-      toast.add({ title: "Entry created", description: `${direction} ${formatRupees(paise)} recorded`, type: "success" });
+      toast.add({ title: "Entry recorded", description: `Debit ${formatRupees(paise)} recorded`, type: "success" });
       setAmountRupees("");
       setNote("");
       onDone?.();
@@ -118,14 +118,9 @@ export function TransactionForm({
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Direction *</Label>
-          <Select value={direction} onValueChange={(v) => setDirection(v as "debit" | "credit")}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="debit">Debit — give money</SelectItem>
-              <SelectItem value="credit">Credit — receive</SelectItem>
-            </SelectContent>
-          </Select>
+          <Label>Direction</Label>
+          <Input value="Debit — money given" readOnly className="bg-muted" />
+          <input type="hidden" value="debit" />
         </div>
       </div>
 
@@ -174,7 +169,7 @@ export function TransactionForm({
       </div>
 
       <Button type="submit" className="w-full" disabled={create.isPending}>
-        {create.isPending ? "Saving…" : `${direction === "debit" ? "Debit" : "Credit"} — record`}
+        {create.isPending ? "Saving…" : "Debit — record"}
       </Button>
       <p className="text-xs text-muted-foreground text-center">Saved as integer paise • staleTime:0 refetch on focus</p>
     </form>

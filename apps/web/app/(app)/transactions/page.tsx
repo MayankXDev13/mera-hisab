@@ -5,7 +5,6 @@ import { useTransactions, type TransactionFilters } from "@/lib/queries/transact
 import { useCustomers } from "@/lib/queries/customers";
 import { useAccounts } from "@/lib/queries/accounts";
 import { useCards } from "@/lib/queries/cards";
-import { useReverseTransaction } from "@/lib/mutations/transactions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -15,11 +14,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { formatRupees, formatDate } from "@/lib/utils/format";
 import { TransactionForm } from "@/components/app/transaction-form";
 import { toast } from "@/components/ui/toast";
-import { RiAddLine, RiRefreshLine } from "@remixicon/react";
+import { RiAddLine } from "@remixicon/react";
 
 function errMsg(e: unknown) {
   const err = e as { response?: { data?: { error?: string } }; message?: string };
@@ -32,7 +30,6 @@ export default function TransactionsPage() {
   const customers = useCustomers();
   const accounts = useAccounts();
   const cards = useCards();
-  const reverse = useReverseTransaction();
   const [open, setOpen] = useState(false);
 
   const customerMap = new Map(customers.data?.map((c) => [c.id, c.name]) ?? []);
@@ -145,14 +142,12 @@ export default function TransactionsPage() {
                     <TableHead>Amount</TableHead>
                     <TableHead>Source</TableHead>
                     <TableHead>Note</TableHead>
-                    <TableHead className="w-24"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {tx.data.transactions.map((t) => {
-                    const isReversal = Boolean(t.reversedFromId);
                     return (
-                      <TableRow key={t.id} className={`perforated ${isReversal ? "bg-amber-50/50 dark:bg-amber-950/10" : ""}`}>
+                      <TableRow key={t.id} className="perforated">
                         <TableCell className="text-xs whitespace-nowrap">{formatDate(t.occurredAt)}</TableCell>
                         <TableCell className="text-xs">{customerMap.get(t.customerId) ?? t.customerId.slice(0, 8)}</TableCell>
                         <TableCell>
@@ -162,37 +157,12 @@ export default function TransactionsPage() {
                         </TableCell>
                         <TableCell className={`font-mono text-sm ${t.direction === "debit" ? "text-[oklch(0.55_0.2_25)]" : "text-[oklch(0.38_0.12_150)]"}`}>
                           {t.direction === "debit" ? "−" : "+"}{formatRupees(t.amountPaise)}
-                          {isReversal && <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-amber-200 text-amber-900 rotate-1 inline-block">REV</span>}
                         </TableCell>
                         <TableCell className="text-xs max-w-[160px] truncate">
-                          {t.sourceType === "account" ? accountMap.get(t.sourceId) ?? t.sourceId.slice(0, 8) : cardMap.get(t.sourceId) ?? t.sourceId.slice(0, 8)}
-                          <span className="text-muted-foreground ml-1 capitalize text-[11px]">{t.sourceType.replace("_", " ")}</span>
+                          {accountMap.get(t.sourceId ?? "") ?? cardMap.get(t.sourceId ?? "") ?? (t.sourceId ? t.sourceId.slice(0, 8) : "repayment")}
                         </TableCell>
                         <TableCell className="text-xs max-w-[200px] truncate" title={t.note ?? ""}>{t.note ?? "—"}</TableCell>
-                        <TableCell>
-                          <AlertDialog>
-                            <AlertDialogTrigger render={<Button variant="ghost" size="sm" disabled={reverse.isPending || isReversal} title={isReversal ? "Reversal entries cannot be reversed again (UI blocked)" : "Create compensating entry"}><RiRefreshLine className="size-3" /> Reverse</Button>} />
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Reverse this entry?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Creates a compensating <b>{t.direction === "debit" ? "credit" : "debit"}</b> entry for {formatRupees(t.amountPaise)} on {formatDate(t.occurredAt)}. Original stays immutable. Source balance will move opposite direction.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={async () => {
-                                  try {
-                                    const created = await reverse.mutateAsync(t.id);
-                                    toast.add({ title: "Reversed", description: `Created ${created.direction} ${formatRupees(created.amountPaise)}`, type: "success" });
-                                  } catch (e) {
-                                    toast.add({ title: "Reverse failed", description: errMsg(e), type: "error" });
-                                  }
-                                }}>Confirm reverse</AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </TableCell>
+
                       </TableRow>
                     );
                   })}

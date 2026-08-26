@@ -1,30 +1,36 @@
-import type { accounts, creditCards, customers, transactions } from "@repo/db/schema";
+import type { customers, fundingSources, transactions } from "@repo/db/schema";
 
 function toIso(d: Date | string): string {
   return typeof d === "string" ? new Date(d).toISOString() : d.toISOString();
 }
 
-export function toAccountDto(row: typeof accounts.$inferSelect) {
+type FundingSourceRow = typeof fundingSources.$inferSelect;
+
+/** Bank-account view of a funding source row (kind = bank_account). */
+export function toAccountDto(row: FundingSourceRow) {
   return {
     id: row.id,
     name: row.name,
-    type: row.type,
-    openingBalancePaise: row.openingBalancePaise,
-    currentBalancePaise: row.currentBalancePaise,
+    kind: row.kind,
+    openingBalancePaise: row.openingBalancePaise ?? 0,
+    currentBalancePaise: row.currentBalancePaise ?? 0,
     status: row.status,
     createdAt: toIso(row.createdAt),
     updatedAt: toIso(row.updatedAt),
   };
 }
 
-export function toCardDto(row: typeof creditCards.$inferSelect) {
+/** Credit-card view of a funding source row (kind = credit_card). */
+export function toCardDto(row: FundingSourceRow) {
+  const totalLimitPaise = row.totalLimitPaise ?? 0;
+  const usedPaise = row.usedPaise ?? 0;
   return {
     id: row.id,
-    issuer: row.issuer,
-    last4: row.last4,
-    totalLimitPaise: row.totalLimitPaise,
-    usedPaise: row.usedPaise,
-    availablePaise: row.totalLimitPaise - row.usedPaise,
+    issuer: row.issuer ?? row.name,
+    last4: row.last4 ?? "",
+    totalLimitPaise,
+    usedPaise,
+    availablePaise: totalLimitPaise - usedPaise,
     status: row.status,
     createdAt: toIso(row.createdAt),
     updatedAt: toIso(row.updatedAt),
@@ -52,12 +58,10 @@ export function toTransactionDto(row: typeof transactions.$inferSelect) {
     direction: row.direction,
     amountPaise: row.amountPaise,
     customerId: row.customerId,
-    sourceType: row.sourceType,
     sourceId: row.sourceId,
     occurredAt: toIso(row.occurredAt),
     note: row.note,
     createdBy: row.createdBy,
-    reversedFromId: row.reversedFromId,
     createdAt: toIso(row.createdAt),
   };
 }

@@ -1,13 +1,12 @@
 "use client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { httpHisabData } from "@/lib/hisab";
-import { invalidationForTransaction, queryKeys } from "@/lib/hisab";
-import type { HisabTransaction as Transaction } from "@/lib/hisab";
+import { httpHisabData, queryKeys, type CreateRepaymentPayload } from "@/lib/hisab";
+import { invalidationForTransaction } from "@/lib/hisab";
 
 type CreateTxnPayload = {
-  direction: "debit" | "credit";
+  direction: "debit";
   customerId: string;
-  sourceType: "account" | "credit_card";
+  sourceType?: "account" | "credit_card";
   sourceId: string;
   amountPaise: number;
   occurredAt?: string;
@@ -18,25 +17,25 @@ export function useCreateTransaction() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: CreateTxnPayload) => httpHisabData.createTransaction(data),
-    onSuccess: (_data, vars) => {
-      for (const key of invalidationForTransaction(vars)) {
+    onSuccess: (created, vars) => {
+      const kind = vars.sourceType === "credit_card" ? "credit_card" : "account";
+      for (const key of invalidationForTransaction({ sourceType: kind, customerId: vars.customerId, sourceId: vars.sourceId })) {
         qc.invalidateQueries({ queryKey: key });
       }
-      // customers.all no longer invalidated on ledger write — list not affected
     },
   });
 }
 
-export function useReverseTransaction() {
+/** One credit transaction + allocations across sources. */
+export function useCreateRepayment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => httpHisabData.reverseTransaction(id),
-    onSuccess: (data) => {
+    mutationFn: (data: CreateRepaymentPayload) => httpHisabData.createRepayment(data),
+    onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: queryKeys.transactions.all });
-      // precise: only the source type that was reversed
-      const sourceKey = data.sourceType === "account" ? queryKeys.accounts.all : queryKeys.cards.all;
-      qc.invalidateQueries({ queryKey: sourceKey });
-      qc.invalidateQueries({ queryKey: queryKeys.customers.outstanding(data.customerId) });
+      qc.invalidateQueries({ queryKey: queryKeys.customers.outstanding(vars.customerId) });
+      qc.invalidateQueries({ queryKey: queryKeys.accounts.all });
+      qc.invalidateQueries({ queryKey: queryKeys.cards.all });
     },
   });
 }

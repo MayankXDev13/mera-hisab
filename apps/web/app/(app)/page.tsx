@@ -151,8 +151,7 @@ export default function DashboardPage() {
                     <TableCell className={`font-mono text-sm ${t.direction === "debit" ? "text-[oklch(0.55_0.2_25)]" : "text-[oklch(0.38_0.12_150)]"}`}>
                       {t.direction === "debit" ? "−" : "+"}{formatRupees(t.amountPaise)}
                     </TableCell>
-                    <TableCell className="text-xs capitalize">{t.sourceType.replace("_", " ")}</TableCell>
-                    <TableCell className="text-xs max-w-[220px] truncate">{t.note ?? "—"}</TableCell>
+                                        <TableCell className="text-xs max-w-[220px] truncate">{t.note ?? "—"}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

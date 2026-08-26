@@ -244,8 +244,6 @@ export function buildOpenApiSpec() {
           security: [{ cookieAuth: [] }],
           parameters: [
             { name: "customerId", in: "query", schema: { type: "string", format: "uuid" } },
-            { name: "sourceType", in: "query", schema: { type: "string", enum: ["account", "credit_card"] } },
-            { name: "sourceId", in: "query", schema: { type: "string", format: "uuid" } },
             { name: "direction", in: "query", schema: { type: "string", enum: ["debit", "credit"] } },
             { name: "from", in: "query", schema: { type: "string", format: "date-time" } },
             { name: "to", in: "query", schema: { type: "string", format: "date-time" } },

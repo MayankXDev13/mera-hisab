@@ -1,17 +1,19 @@
 import { z } from "zod";
 import { paiseSchema } from "./common.js";
 
-export const accountTypeSchema = z.enum(["savings", "current"]);
-export const accountStatusSchema = z.enum(["active", "deactivated"]);
+export const fundingSourceKindSchema = z.enum(["bank_account", "credit_card"]);
+export const fundingSourceStatusSchema = z.enum(["active", "deactivated"]);
 
-export const createAccountSchema = z.object({
+// POST /api/accounts — kind is implied by the route
+export const createBankAccountSchema = z.object({
   name: z.string().min(1).max(200),
-  type: accountTypeSchema.default("savings"),
   openingBalancePaise: paiseSchema,
 });
 
-export const updateAccountSchema = z.object({
+export const updateBankAccountSchema = z.object({
   name: z.string().min(1).max(200).optional(),
-  type: accountTypeSchema.optional(),
-  status: accountStatusSchema.optional(),
+  status: fundingSourceStatusSchema.optional(),
 });
+
+/** @deprecated legacy alias kept for one release */
+export const accountTypeSchema = z.enum(["savings", "current"]);

@@ -17,6 +17,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { formatRupees, formatBps, formatDate } from "@/lib/utils/format";
 import { toast } from "@/components/ui/toast";
 import { TransactionForm } from "@/components/app/transaction-form";
+import { RepaymentDialog } from "@/components/app/repayment-dialog";
 import { RiAddLine } from "@remixicon/react";
 
 function errMsg(e: unknown) {
@@ -60,6 +61,7 @@ export default function CustomersPage() {
   const [open, setOpen] = useState(false);
   const [drawerId, setDrawerId] = useState<string | null>(null);
   const [txnOpen, setTxnOpen] = useState(false);
+  const [repayOpen, setRepayOpen] = useState(false);
   const create = useCreateCustomer();
   const update = useUpdateCustomer();
   const [form, setForm] = useState<{ name: string; username: string; email: string; phone: string; notes: string; monthlyRateBps: number; status: "active" | "deactivated" }>({ name: "", username: "", email: "", phone: "", notes: "", monthlyRateBps: 250, status: "active" });
@@ -172,12 +174,7 @@ export default function CustomersPage() {
           {selected && (
             <div className="space-y-4 mt-4">
               <div className="grid grid-cols-2 gap-3">
-                <Card>
-                  <CardContent className="p-3">
-                    <div className="text-[11px] tracking-[0.14em] uppercase text-muted-foreground">Outstanding</div>
-                    <div className="mt-1"><OutstandingCell id={selected.id} /></div>
-                  </CardContent>
-                </Card>
+                <OutstandingBreakdown customerId={selected.id} onRecord={() => setRepayOpen(true)} />
                 <Card>
                   <CardContent className="p-3">
                     <div className="text-[11px] tracking-[0.14em] uppercase text-muted-foreground">Rate</div>
@@ -203,10 +200,57 @@ export default function CustomersPage() {
                   <TransactionForm defaultCustomerId={selected.id} onDone={() => setTxnOpen(false)} />
                 </DialogContent>
               </Dialog>
+
+              <Dialog open={repayOpen} onOpenChange={setRepayOpen}>
+                <DialogContent className="max-w-md">
+                  <DialogHeader><DialogTitle>Record repayment — {selected.name}</DialogTitle></DialogHeader>
+                  <RepaymentContainer customerId={selected.id} customerName={selected.name} onDone={() => setRepayOpen(false)} />
+                </DialogContent>
+              </Dialog>
             </div>
           )}
         </SheetContent>
       </Sheet>
     </div>
+  );
+}
+
+
+function OutstandingBreakdown({ customerId, onRecord }: { customerId: string; onRecord: () => void }) {
+  const q = useOutstanding(customerId);
+  if (q.isLoading) return <Skeleton className="h-20 w-full" />;
+  if (q.error) return <span className="text-destructive text-xs">err</span>;
+  const data = q.data;
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="text-[11px] tracking-[0.14em] uppercase text-muted-foreground">Total outstanding</div>
+        <div className="font-mono text-sm">{formatRupees(data?.outstandingPaise ?? 0)}</div>
+      </div>
+      <div className="space-y-1">
+        {(data?.sources ?? []).map((src) => (
+          <div key={src.sourceId} className="flex items-center justify-between text-xs">
+            <span className="truncate text-muted-foreground">{src.name}</span>
+            <span className="font-mono">{formatRupees(src.outstandingPaise)}</span>
+          </div>
+        ))}
+        {!data?.sources.length && <p className="text-xs text-muted-foreground">No ledger activity yet.</p>}
+      </div>
+      <Button size="sm" className="w-full" onClick={onRecord} disabled={(data?.outstandingPaise ?? 0) <= 0}>Record repayment</Button>
+    </div>
+  );
+}
+
+function RepaymentContainer({ customerId, customerName, onDone }: { customerId: string; customerName: string; onDone: () => void }) {
+  const q = useOutstanding(customerId);
+  if (q.isLoading) return <Skeleton className="h-24 w-full" />;
+  return (
+    <RepaymentDialog
+      customerId={customerId}
+      customerName={customerName}
+      sources={q.data?.sources ?? []}
+      totalOutstanding={q.data?.outstandingPaise ?? 0}
+      onDone={onDone}
+    />
   );
 }

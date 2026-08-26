@@ -39,12 +39,10 @@ export type HisabTransaction = {
   direction: "debit" | "credit";
   amountPaise: number;
   customerId: string;
-  sourceType: "account" | "credit_card";
-  sourceId: string;
+  sourceId: string | null;
   occurredAt: string;
   note: string | null;
   createdBy: string | null;
-  reversedFromId: string | null;
   createdAt: string;
 };
 
@@ -59,7 +57,20 @@ export type TransactionFilters = {
   limit?: number;
 };
 
-export type Outstanding = { customerId: string; outstandingPaise: number };
+export type Outstanding = {
+  customerId: string;
+  outstandingPaise: number;
+  sources: Array<{ sourceId: string; name: string; kind: "bank_account" | "credit_card"; outstandingPaise: number }>;
+};
+export type RepaymentAllocation = { sourceId: string; amountPaise: number };
+export type CreateRepaymentPayload = {
+  customerId: string;
+  mode: "fifo" | "manual";
+  amountPaise?: number;
+  occurredAt?: string;
+  note?: string | null;
+  allocations?: RepaymentAllocation[];
+};
 export type PaginatedTransactions = { transactions: HisabTransaction[]; total: number; page: number; limit: number };
 export type ApiError = { error: string };
 export type ApiValidationError = {
@@ -112,9 +123,9 @@ export type HisabData = {
   listCustomers(): Promise<HisabCustomer[]>;
   listTransactions(filters: TransactionFilters): Promise<PaginatedTransactions>;
   getOutstanding(customerId: string): Promise<Outstanding>;
+  createRepayment(data: CreateRepaymentPayload): Promise<{ id: string }>;
   getOutstandings(ids: string[]): Promise<Record<string, number>>;
-  createTransaction(data: { direction: "debit" | "credit"; customerId: string; sourceType: "account" | "credit_card"; sourceId: string; amountPaise: number; occurredAt?: string; note?: string | null }): Promise<HisabTransaction>;
-  reverseTransaction(id: string): Promise<HisabTransaction>;
+  createTransaction(data: { direction: "debit"; customerId: string; sourceId: string; amountPaise: number; occurredAt?: string; note?: string | null }): Promise<HisabTransaction>;
 };
 
 // HTTP adapter
@@ -141,6 +152,10 @@ export const httpHisabData: HisabData = {
     const res = await api.get<Outstanding>(`/api/customers/${customerId}/outstanding`);
     return res.data;
   },
+  async createRepayment(data) {
+    const res = await api.post<{ transaction: { id: string } }>(`/api/customers/${data.customerId}/repayments`, data);
+    return res.data.transaction;
+  },
   async getOutstandings(ids) {
     if (ids.length === 0) return {};
     const res = await api.get<{ outstandings: Record<string, number> }>("/api/customers/outstanding", { params: { ids: ids.join(",") } });
@@ -148,10 +163,6 @@ export const httpHisabData: HisabData = {
   },
   async createTransaction(data) {
     const res = await api.post<{ transaction: HisabTransaction }>("/api/transactions", data);
-    return res.data.transaction;
-  },
-  async reverseTransaction(id) {
-    const res = await api.post<{ transaction: HisabTransaction }>(`/api/transactions/${id}/reverse`);
     return res.data.transaction;
   },
 };
@@ -188,8 +199,13 @@ export function createMemoryHisabData(seed: Partial<{
     },
     async getOutstanding(customerId) {
       calls.push(`getOutstanding:${customerId}`);
-      const sum = store.transactions.filter((t) => t.customerId === customerId).reduce((s, t) => s + (t.direction === "debit" ? t.amountPaise : -t.amountPaise), 0);
-      return { customerId, outstandingPaise: sum };
+      const debits = store.transactions.filter((t) => t.customerId === customerId && t.direction === "debit");
+      const bySource = new Map<string, number>();
+      for (const d of debits) { if (!d.sourceId) continue; bySource.set(d.sourceId, (bySource.get(d.sourceId) ?? 0) + d.amountPaise); }
+      const repaid = (store as { repayments?: Array<{ customerId: string; amountPaise: number }> }).repayments
+        ?.filter((r) => r.customerId === customerId).reduce((s2, r) => s2 + r.amountPaise, 0) ?? 0;
+      const sources = [...bySource.entries()].map(([sourceId, v]) => ({ sourceId, name: sourceId, kind: "bank_account" as const, outstandingPaise: v }));
+      return { customerId, outstandingPaise: debits.reduce((s2, d) => s2 + d.amountPaise, 0) - repaid, sources };
     },
     async getOutstandings(ids) {
       calls.push(`getOutstandings:${ids.join(",")}`);
@@ -199,18 +215,15 @@ export function createMemoryHisabData(seed: Partial<{
       return map;
     },
     async createTransaction(data) {
-      calls.push(`createTransaction:${data.sourceType}`);
-      const row: HisabTransaction = { id: `txn_${store.transactions.length + 1}`, direction: data.direction, amountPaise: data.amountPaise, customerId: data.customerId, sourceType: data.sourceType, sourceId: data.sourceId, occurredAt: data.occurredAt ?? new Date().toISOString(), note: data.note ?? null, createdBy: null, reversedFromId: null, createdAt: new Date().toISOString() };
+      calls.push(`createTransaction:${data.sourceId}`);
+      const row: HisabTransaction = { id: `txn_${store.transactions.length + 1}`, direction: data.direction, amountPaise: data.amountPaise, customerId: data.customerId, sourceId: data.sourceId, occurredAt: data.occurredAt ?? new Date().toISOString(), note: data.note ?? null, createdBy: null, createdAt: new Date().toISOString() };
       store.transactions.push(row);
       return row;
     },
-    async reverseTransaction(id) {
-      calls.push(`reverseTransaction:${id}`);
-      const orig = store.transactions.find((t) => t.id === id);
-      if (!orig) throw new Error("not found");
-      const rev: HisabTransaction = { ...orig, id: `rev_${id}`, direction: orig.direction === "debit" ? "credit" : "debit", reversedFromId: id, createdAt: new Date().toISOString() };
-      store.transactions.push(rev);
-      return rev;
+    async createRepayment(data) {
+      calls.push(`createRepayment:${data.mode}`);
+      if (!data.amountPaise || data.amountPaise <= 0) throw new Error("invalid amount");
+      return { id: `repay_${store.transactions.length + 1}` };
     },
   };
 }

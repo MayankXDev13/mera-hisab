@@ -2,13 +2,12 @@ import { z } from "zod";
 import { paisePositiveSchema, paginationSchema, dateRangeQuerySchema } from "./common.js";
 
 export const transactionDirectionSchema = z.enum(["debit", "credit"]);
-export const sourceTypeSchema = z.enum(["account", "credit_card"]);
 
 export const createTransactionSchema = z
   .object({
     direction: transactionDirectionSchema,
     customerId: z.string().uuid(),
-    sourceType: sourceTypeSchema,
+    // funding_sources.id — kind lives on the row, not the request
     sourceId: z.string().uuid(),
     amountPaise: paisePositiveSchema.optional(),
     amountRupees: z.union([z.string(), z.number()]).optional(),
@@ -29,8 +28,6 @@ export const transactionFilterQuerySchema = paginationSchema
   .merge(
     z.object({
       customerId: z.string().uuid().optional(),
-      sourceType: z.enum(["account", "credit_card"]).optional(),
-      sourceId: z.string().uuid().optional(),
       direction: z.enum(["debit", "credit"]).optional(),
     }),
   );
