@@ -9,10 +9,12 @@ import cardsRouter from "./routes/cards.routes.js";
 import customersRouter from "./routes/customers.routes.js";
 import transactionsRouter from "./routes/transactions.routes.js";
 import { openApiSpec } from "./docs/openapi.js";
+import { httpLogger } from "./lib/logger.js";
 
 export const createApp = () => {
   const app = express();
 
+  app.use(httpLogger);
   app.use(
     cors({
       origin: process.env.WEB_URL ?? "http://localhost:3000",
