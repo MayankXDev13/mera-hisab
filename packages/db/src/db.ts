@@ -1,6 +1,26 @@
 import { config } from "dotenv";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
+import { accounts } from "./schema/accounts.js";
+import { auditLogs } from "./schema/auditLogs.js";
+import { user, session, account, verification } from "./schema/auth.js";
+import { creditCards } from "./schema/creditCards.js";
+import { customers } from "./schema/customers.js";
+import { monthlyCharges } from "./schema/monthlyCharges.js";
+import { transactions } from "./schema/transactions.js";
+
+const drizzleSchema = {
+  accounts,
+  auditLogs,
+  user,
+  session,
+  account,
+  verification,
+  creditCards,
+  customers,
+  monthlyCharges,
+  transactions,
+};
 
 config({ path: ".env" });
 config({ path: "../../.env" });

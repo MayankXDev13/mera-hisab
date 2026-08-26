@@ -19,8 +19,7 @@ export const customers = pgTable("customers", {
   email: text("email"),
   phone: text("phone"),
   notes: text("notes"),
-  monthlyRatePct: integer("monthly_rate_pct_int").notNull().default(0), // store as basis? use integer paise? keep numeric as text for decimals
-  // store rate*100 to keep decimals e.g. 2.5% => 250
+  // rate in basis points: 250 = 2.50%
   monthlyRateBps: integer("monthly_rate_bps").notNull(),
   status: customerStatusEnum("status").default("active").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true })

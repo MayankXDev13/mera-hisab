@@ -8,6 +8,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { customers } from "./customers.js";
+import { monthlyCharges } from "./monthlyCharges.js";
 
 export const transactionDirectionEnum = pgEnum("transaction_direction", [
   "debit",
@@ -28,10 +29,9 @@ export const transactions = pgTable(
     sourceId: uuid("source_id").notNull(),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
     note: text("note"),
-    createdBy: uuid("created_by"),
+    createdBy: text("created_by"),
     reversedFromId: uuid("reversed_from_id"),
-    // charge linkage
-    monthlyChargeId: uuid("monthly_charge_id"),
+    monthlyChargeId: uuid("monthly_charge_id").references(() => monthlyCharges.id),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -39,5 +39,6 @@ export const transactions = pgTable(
   (t) => [
     index("transactions_customer_idx").on(t.customerId),
     index("transactions_source_idx").on(t.sourceType, t.sourceId),
+    index("transactions_monthly_charge_idx").on(t.monthlyChargeId),
   ],
 );
