@@ -1,11 +1,9 @@
 import type { Request, Response } from "express";
 import { eq, desc, and } from "@repo/db";
-import { randomUUID } from "node:crypto";
-import { db as _db } from "@repo/db";
-const db: any = _db;
-import { accounts, creditCards, customers, transactions, auditLogs } from "@repo/db/schema";
+import { db } from "@repo/db";
+import { transactions } from "@repo/db/schema";
 import { toTransactionDto } from "../lib/dto.js";
-import { resolveAmount } from "@repo/schemas";
+import { createLedgerTransaction, reverseLedgerTransaction, LedgerError } from "../services/ledger.service.js";
 
 function getActor(req: Request): string | null {
   return (req as unknown as { user?: { id: string } }).user?.id ?? null;
@@ -27,182 +25,24 @@ export const createTransaction = async (req: Request, res: Response) => {
   }).validatedBody;
 
   const actorId = getActor(req);
-  const amountPaise = resolveAmount(body);
-  if (amountPaise === null) {
-    return res.status(400).json({ error: "amountPaise or amountRupees is required and must be >0, not both" });
-  }
-
-  const occurredAt = body.occurredAt ? new Date(body.occurredAt as string).toISOString() : new Date().toISOString();
-  const id = randomUUID();
-
-  const customer = await (db as any).select().from(customers).where(eq(customers.id as any, body.customerId as any)).limit(1);
-  if (!customer[0]) return res.status(404).json({ error: "customer not found" });
-
   try {
-    const created = await (db as any).transaction(async (tx: any) => {
-      if (body.sourceType === "account") {
-        const accRows = await (tx as any).select().from(accounts).where(eq(accounts.id as any, body.sourceId as any)).limit(1);
-        if (!accRows[0]) throw Object.assign(new Error("account not found"), { statusCode: 404 });
-        const acc = accRows[0]!;
-        if (acc.status !== "active") throw Object.assign(new Error("account is deactivated"), { statusCode: 400 });
-
-        if (body.direction === "debit") {
-          if (acc.currentBalancePaise < amountPaise) throw Object.assign(new Error("insufficient account balance"), { statusCode: 400 });
-          await (tx as any).update(accounts).set({ currentBalancePaise: acc.currentBalancePaise - amountPaise, updatedAt: new Date() }).where(eq(accounts.id as any, acc.id as any));
-        } else {
-          await (tx as any).update(accounts).set({ currentBalancePaise: acc.currentBalancePaise + amountPaise, updatedAt: new Date() }).where(eq(accounts.id as any, acc.id as any));
-        }
-
-        const [row] = await tx
-          .insert(transactions)
-          .values({
-            id,
-            direction: body.direction,
-            amountPaise,
-            customerId: body.customerId,
-            sourceType: body.sourceType,
-            sourceId: body.sourceId,
-            occurredAt: new Date(occurredAt),
-            note: body.note ?? null,
-            createdBy: actorId,
-            monthlyChargeId: body.monthlyChargeId ?? null,
-          })
-          .returning();
-        if (!row) throw Object.assign(new Error("failed to create transaction"), { statusCode: 500 });
-
-        await (tx as any).insert(auditLogs).values({
-          actorId,
-          action: "transaction.create",
-          entityType: "transaction",
-          entityId: row.id,
-          before: null,
-          after: row as unknown as never,
-        });
-        return row;
-      } else {
-        const cardRows = await (tx as any).select().from(creditCards).where(eq(creditCards.id as any, body.sourceId as any)).limit(1);
-        if (!cardRows[0]) throw Object.assign(new Error("card not found"), { statusCode: 404 });
-        const card = cardRows[0]!;
-        if (card.status !== "active") throw Object.assign(new Error("card is deactivated"), { statusCode: 400 });
-
-        if (body.direction === "debit") {
-          const available = card.totalLimitPaise - card.usedPaise;
-          if (available < amountPaise) throw Object.assign(new Error("insufficient card limit"), { statusCode: 400 });
-          await (tx as any).update(creditCards).set({ usedPaise: card.usedPaise + amountPaise, updatedAt: new Date() }).where(eq(creditCards.id as any, card.id as any));
-        } else {
-          const nextUsed = Math.max(0, card.usedPaise - amountPaise);
-          await (tx as any).update(creditCards).set({ usedPaise: nextUsed, updatedAt: new Date() }).where(eq(creditCards.id as any, card.id as any));
-        }
-
-        const [row] = await tx
-          .insert(transactions)
-          .values({
-            id,
-            direction: body.direction,
-            amountPaise,
-            customerId: body.customerId,
-            sourceType: body.sourceType,
-            sourceId: body.sourceId,
-            occurredAt: new Date(occurredAt),
-            note: body.note ?? null,
-            createdBy: actorId,
-            monthlyChargeId: body.monthlyChargeId ?? null,
-          })
-          .returning();
-        if (!row) throw Object.assign(new Error("failed to create transaction"), { statusCode: 500 });
-
-        await (tx as any).insert(auditLogs).values({
-          actorId,
-          action: "transaction.create",
-          entityType: "transaction",
-          entityId: row.id,
-          before: null,
-          after: row as unknown as never,
-        });
-        return row;
-      }
-    });
-
-    return res.status(201).json({ transaction: toTransactionDto(created) });
+    const row = await createLedgerTransaction(body, { db, actorId });
+    return res.status(201).json({ transaction: toTransactionDto(row) });
   } catch (e) {
-    const err = e as Error & { statusCode?: number };
-    if (err.statusCode) return res.status(err.statusCode).json({ error: err.message });
-    return res.status(500).json({ error: err.message });
+    if (e instanceof LedgerError) return res.status(e.statusCode).json({ error: e.message });
+    return res.status(500).json({ error: (e as Error).message });
   }
 };
 
 export const reverseTransaction = async (req: Request, res: Response) => {
-  const { id: transactionId } = req.params;
+  const { id: transactionId } = req.params as { id: string };
   const actorId = getActor(req);
-  const newId = randomUUID();
-
-  const origRows = await (db as any).select().from(transactions).where(eq(transactions.id as any, transactionId! as any)).limit(1);
-  if (!origRows[0]) return res.status(404).json({ error: "transaction not found" });
-  const orig = origRows[0]!;
-  const revDir = orig.direction === "debit" ? "credit" : "debit";
-
   try {
-    const created = await (db as any).transaction(async (tx: any) => {
-      const freshRows = await (tx as any).select().from(transactions).where(eq(transactions.id as any, transactionId! as any)).limit(1);
-      if (!freshRows[0]) throw Object.assign(new Error("transaction not found"), { statusCode: 404 });
-      const fresh = freshRows[0]!;
-
-      if (fresh.sourceType === "account") {
-        const accRows = await (tx as any).select().from(accounts).where(eq(accounts.id as any, fresh.sourceId as any)).limit(1);
-        if (!accRows[0]) throw Object.assign(new Error("account not found"), { statusCode: 404 });
-        const acc = accRows[0]!;
-        if (revDir === "debit") {
-          if (acc.currentBalancePaise < fresh.amountPaise) throw Object.assign(new Error("insufficient account balance"), { statusCode: 400 });
-          await (tx as any).update(accounts).set({ currentBalancePaise: acc.currentBalancePaise - fresh.amountPaise, updatedAt: new Date() }).where(eq(accounts.id as any, acc.id as any));
-        } else {
-          await (tx as any).update(accounts).set({ currentBalancePaise: acc.currentBalancePaise + fresh.amountPaise, updatedAt: new Date() }).where(eq(accounts.id as any, acc.id as any));
-        }
-      } else {
-        const cardRows = await (tx as any).select().from(creditCards).where(eq(creditCards.id as any, fresh.sourceId as any)).limit(1);
-        if (!cardRows[0]) throw Object.assign(new Error("card not found"), { statusCode: 404 });
-        const card = cardRows[0]!;
-        if (revDir === "debit") {
-          const available = card.totalLimitPaise - card.usedPaise;
-          if (available < fresh.amountPaise) throw Object.assign(new Error("insufficient card limit"), { statusCode: 400 });
-          await (tx as any).update(creditCards).set({ usedPaise: card.usedPaise + fresh.amountPaise, updatedAt: new Date() }).where(eq(creditCards.id as any, card.id as any));
-        } else {
-          await (tx as any).update(creditCards).set({ usedPaise: Math.max(0, card.usedPaise - fresh.amountPaise), updatedAt: new Date() }).where(eq(creditCards.id as any, card.id as any));
-        }
-      }
-
-      const [row] = await tx
-        .insert(transactions)
-        .values({
-          id: newId,
-          direction: revDir as "debit" | "credit",
-          amountPaise: fresh.amountPaise,
-          customerId: fresh.customerId,
-          sourceType: fresh.sourceType,
-          sourceId: fresh.sourceId,
-          occurredAt: new Date(),
-          note: `Reversal of ${fresh.id}`,
-          createdBy: actorId,
-          reversedFromId: fresh.id,
-        })
-        .returning();
-      if (!row) throw Object.assign(new Error("failed to create reversal"), { statusCode: 500 });
-
-      await (tx as any).insert(auditLogs).values({
-        actorId,
-        action: "transaction.reverse",
-        entityType: "transaction",
-        entityId: row.id,
-        before: fresh as unknown as never,
-        after: row as unknown as never,
-      });
-      return row;
-    });
-
-    return res.status(201).json({ transaction: toTransactionDto(created) });
+    const row = await reverseLedgerTransaction(transactionId, { db, actorId });
+    return res.status(201).json({ transaction: toTransactionDto(row) });
   } catch (e) {
-    const err = e as Error & { statusCode?: number };
-    if (err.statusCode) return res.status(err.statusCode).json({ error: err.message });
-    return res.status(500).json({ error: err.message });
+    if (e instanceof LedgerError) return res.status(e.statusCode).json({ error: e.message });
+    return res.status(500).json({ error: (e as Error).message });
   }
 };
 
