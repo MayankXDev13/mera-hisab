@@ -45,7 +45,6 @@ export type HisabTransaction = {
   note: string | null;
   createdBy: string | null;
   reversedFromId: string | null;
-  monthlyChargeId: string | null;
   createdAt: string;
 };
 
@@ -201,7 +200,7 @@ export function createMemoryHisabData(seed: Partial<{
     },
     async createTransaction(data) {
       calls.push(`createTransaction:${data.sourceType}`);
-      const row: HisabTransaction = { id: `txn_${store.transactions.length + 1}`, direction: data.direction, amountPaise: data.amountPaise, customerId: data.customerId, sourceType: data.sourceType, sourceId: data.sourceId, occurredAt: data.occurredAt ?? new Date().toISOString(), note: data.note ?? null, createdBy: null, reversedFromId: null, monthlyChargeId: null, createdAt: new Date().toISOString() };
+      const row: HisabTransaction = { id: `txn_${store.transactions.length + 1}`, direction: data.direction, amountPaise: data.amountPaise, customerId: data.customerId, sourceType: data.sourceType, sourceId: data.sourceId, occurredAt: data.occurredAt ?? new Date().toISOString(), note: data.note ?? null, createdBy: null, reversedFromId: null, createdAt: new Date().toISOString() };
       store.transactions.push(row);
       return row;
     },

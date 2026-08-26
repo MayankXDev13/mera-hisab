@@ -205,7 +205,7 @@ describe("queries.service — SQL pushdown", () => {
         note: null,
         createdBy: null,
         reversedFromId: null,
-        monthlyChargeId: null,
+        
         createdAt: new Date(),
       });
     }
@@ -230,8 +230,8 @@ describe("queries.service — SQL pushdown", () => {
     expect(val0).toBe(0);
 
     stores.transactions.push(
-      { id: randomUUID(), customerId: cid, direction: "debit", amountPaise: 50000, sourceType: "account", sourceId: randomUUID(), occurredAt: new Date(), note: null, createdBy: null, reversedFromId: null, monthlyChargeId: null, createdAt: new Date() },
-      { id: randomUUID(), customerId: cid, direction: "credit", amountPaise: 20000, sourceType: "account", sourceId: randomUUID(), occurredAt: new Date(), note: null, createdBy: null, reversedFromId: null, monthlyChargeId: null, createdAt: new Date() }
+      { id: randomUUID(), customerId: cid, direction: "debit", amountPaise: 50000, sourceType: "account", sourceId: randomUUID(), occurredAt: new Date(), note: null, createdBy: null, reversedFromId: null, createdAt: new Date() },
+      { id: randomUUID(), customerId: cid, direction: "credit", amountPaise: 20000, sourceType: "account", sourceId: randomUUID(), occurredAt: new Date(), note: null, createdBy: null, reversedFromId: null, createdAt: new Date() }
     );
     const val = await getOutstandingQuery(cid, { db: fakeDb });
     expect(val).toBe(30000);
@@ -243,8 +243,8 @@ describe("queries.service — SQL pushdown", () => {
     const cid3 = randomUUID();
     stores.customers.push({ id: cid1 }, { id: cid2 }, { id: cid3 });
     stores.transactions.push(
-      { id: randomUUID(), customerId: cid1, direction: "debit", amountPaise: 10000, sourceType: "account", sourceId: randomUUID(), occurredAt: new Date(), note: null, createdBy: null, reversedFromId: null, monthlyChargeId: null, createdAt: new Date() },
-      { id: randomUUID(), customerId: cid1, direction: "credit", amountPaise: 4000, sourceType: "account", sourceId: randomUUID(), occurredAt: new Date(), note: null, createdBy: null, reversedFromId: null, monthlyChargeId: null, createdAt: new Date() }
+      { id: randomUUID(), customerId: cid1, direction: "debit", amountPaise: 10000, sourceType: "account", sourceId: randomUUID(), occurredAt: new Date(), note: null, createdBy: null, reversedFromId: null, createdAt: new Date() },
+      { id: randomUUID(), customerId: cid1, direction: "credit", amountPaise: 4000, sourceType: "account", sourceId: randomUUID(), occurredAt: new Date(), note: null, createdBy: null, reversedFromId: null, createdAt: new Date() }
     );
     const map = await getOutstandingBatchQuery([cid1, cid2, cid3], { db: fakeDb });
     expect(map[cid1]).toBe(6000);
@@ -259,7 +259,7 @@ describe("queries.service — SQL pushdown", () => {
     const d2 = new Date("2025-01-02T00:00:00Z");
     const d3 = new Date("2025-01-03T00:00:00Z");
     for (const d of [d1, d2, d3]) {
-      stores.transactions.push({ id: randomUUID(), customerId: cid, direction: "debit", amountPaise: 100, sourceType: "account", sourceId: randomUUID(), occurredAt: d, note: null, createdBy: null, reversedFromId: null, monthlyChargeId: null, createdAt: new Date() });
+      stores.transactions.push({ id: randomUUID(), customerId: cid, direction: "debit", amountPaise: 100, sourceType: "account", sourceId: randomUUID(), occurredAt: d, note: null, createdBy: null, reversedFromId: null, createdAt: new Date() });
     }
     const { transactions: rows } = await listTransactionsQuery({ page: 1, limit: 10 }, { db: fakeDb });
     expect(rows[0].occurredAt.getTime()).toBe(d3.getTime());

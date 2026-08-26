@@ -33,7 +33,7 @@ describe("hisab — deep module", () => {
     const mem = createMemoryHisabData({
       customers: [{ id: "c1", name: "A", username: "a", email: null, phone: null, notes: null, monthlyRateBps: 100, status: "active", createdAt: "", updatedAt: "" }],
       transactions: [
-        { id: "t1", direction: "debit", amountPaise: 50000, customerId: "c1", sourceType: "account", sourceId: "s1", occurredAt: new Date().toISOString(), note: null, createdBy: null, reversedFromId: null, monthlyChargeId: null, createdAt: "" },
+        { id: "t1", direction: "debit", amountPaise: 50000, customerId: "c1", sourceType: "account", sourceId: "s1", occurredAt: new Date().toISOString(), note: null, createdBy: null, reversedFromId: null, createdAt: "" },
       ],
     });
     const paged = await mem.listTransactions({ page: 1, limit: 10 });

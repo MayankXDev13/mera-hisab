@@ -26,7 +26,7 @@ describe("004 - validation + actor + dto", () => {
     expect(toAccountDto({ id: "1", name: "a", type: "savings", openingBalancePaise: 100, currentBalancePaise: 200, status: "active", createdAt: now, updatedAt: now }).createdAt).toBe(now.toISOString());
     expect(toCardDto({ id: "1", issuer: "HDFC", last4: "1234", totalLimitPaise: 100000, usedPaise: 20000, status: "active", createdAt: now, updatedAt: now }).availablePaise).toBe(80000);
     expect(toCustomerDto({ id: "1", name: "n", username: "u", email: null, phone: null, notes: null, monthlyRateBps: 100, status: "active", createdAt: now, updatedAt: now }).monthlyRateBps).toBe(100);
-    expect(toTransactionDto({ id: "1", direction: "debit", amountPaise: 500, customerId: "c", sourceType: "account", sourceId: "s", occurredAt: now, note: null, createdBy: null, reversedFromId: null, monthlyChargeId: null, createdAt: now }).occurredAt).toBe(now.toISOString());
+    expect(toTransactionDto({ id: "1", direction: "debit", amountPaise: 500, customerId: "c", sourceType: "account", sourceId: "s", occurredAt: now, note: null, createdBy: null, reversedFromId: null, createdAt: now }).occurredAt).toBe(now.toISOString());
   });
 
   it("single import path for validateBody", async () => {
