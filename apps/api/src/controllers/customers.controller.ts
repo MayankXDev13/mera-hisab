@@ -1,42 +1,34 @@
 
-import type { Request, Response } from "express";
+import type { Request, Response, RequestHandler } from "express";
 import { eq, asc } from "@repo/db";
-import { db as _db } from "@repo/db";
-const db: any = _db;
+import { db } from "@repo/db";
+import type { createCustomerSchema, updateCustomerSchema } from "@repo/schemas";
+import type { z } from "zod";
+import type { BodyRequest } from "@repo/schemas";
 import { customers, auditLogs } from "@repo/db/schema";
 import { toCustomerDto } from "../lib/dto.js";
 import { LedgerError } from "../services/ledger.service.js";
 import { getOutstandingQuery } from "../services/queries.service.js";
+import { getActor } from "../lib/actor.js";
 
-function getActor(req: Request): string | null {
-  return (req as unknown as { user?: { id: string } }).user?.id ?? null;
-}
+type CreateCustomerBody = z.infer<typeof createCustomerSchema>;
+type UpdateCustomerBody = z.infer<typeof updateCustomerSchema>;
 
-export const listCustomers = async (_req: Request, res: Response) => {
-  const rows = await (db as any).select().from(customers).orderBy(asc(customers.createdAt));
+export const listCustomers: RequestHandler = async (_req, res) => {
+  const rows = await db.select().from(customers).orderBy(asc(customers.createdAt));
   return res.json({ customers: rows.map(toCustomerDto) });
 };
 
-export const getCustomer = async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const rows = await (db as any).select().from(customers).where(eq(customers.id as any, id! as any)).limit(1);
+export const getCustomer: RequestHandler = async (req, res) => {
+  const { id } = req.params as { id: string };
+  const rows = await db.select().from(customers).where(eq(customers.id, id)).limit(1);
   if (!rows[0]) return res.status(404).json({ error: "customer not found" });
   return res.json({ customer: toCustomerDto(rows[0]!) });
 };
 
-export const createCustomer = async (req: Request, res: Response) => {
-  const body = (req as unknown as {
-    validatedBody: {
-      name: string;
-      username: string;
-      email?: string | null;
-      phone?: string | null;
-      notes?: string | null;
-      monthlyRateBps: number;
-      status?: "active" | "deactivated";
-    };
-  }).validatedBody;
-  const actorId = getActor(req);
+export const createCustomer: RequestHandler = async (req, res) => {
+  const body = (req as BodyRequest<CreateCustomerBody>).validatedBody;
+  const actorId = getActor(req as Request);
   try {
     const [row] = await db
       .insert(customers)
@@ -51,7 +43,7 @@ export const createCustomer = async (req: Request, res: Response) => {
       })
       .returning();
     if (!row) return res.status(500).json({ error: "failed to create customer" });
-    await (db as any).insert(auditLogs).values({
+    await db.insert(auditLogs).values({
       actorId,
       action: "customer.create",
       entityType: "customer",
@@ -69,22 +61,12 @@ export const createCustomer = async (req: Request, res: Response) => {
   }
 };
 
-export const updateCustomer = async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const body = (req as unknown as {
-    validatedBody: {
-      name?: string;
-      username?: string;
-      email?: string | null;
-      phone?: string | null;
-      notes?: string | null;
-      monthlyRateBps?: number;
-      status?: "active" | "deactivated";
-    };
-  }).validatedBody;
-  const actorId = getActor(req);
+export const updateCustomer: RequestHandler = async (req, res) => {
+  const { id } = req.params as { id: string };
+  const body = (req as BodyRequest<UpdateCustomerBody>).validatedBody;
+  const actorId = getActor(req as Request);
 
-  const existing = await (db as any).select().from(customers).where(eq(customers.id as any, id! as any)).limit(1);
+  const existing = await db.select().from(customers).where(eq(customers.id, id)).limit(1);
   if (!existing[0]) return res.status(404).json({ error: "customer not found" });
   const before = existing[0]!;
 
@@ -101,11 +83,11 @@ export const updateCustomer = async (req: Request, res: Response) => {
         ...(body.status !== undefined ? { status: body.status } : {}),
         updatedAt: new Date(),
       })
-      .where(eq(customers.id as any, id! as any))
+      .where(eq(customers.id, id))
       .returning();
     if (!row) return res.status(404).json({ error: "customer not found" });
 
-    await (db as any).insert(auditLogs).values({
+    await db.insert(auditLogs).values({
       actorId,
       action: "customer.update",
       entityType: "customer",

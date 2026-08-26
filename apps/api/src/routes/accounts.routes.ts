@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { createAccountSchema, updateAccountSchema } from "@repo/schemas";
-import { validateBody } from "../lib/validate.js";
+import { validateBody } from "@repo/schemas";
 import { requireSession } from "../middlewares/auth.js";
 import { listAccounts, getAccount, createAccount, updateAccount } from "../controllers/accounts.controller.js";
 

@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { auth } from "../lib/auth.js";
 import { fromNodeHeaders } from "better-auth/node";
+import type { ActorRequest } from "../lib/actor.js";
 
 export const requireSession = async (
   req: Request,
@@ -15,9 +16,8 @@ export const requireSession = async (
     return res.status(401).json({ error: "Unauthorized" });
   }
 
-  (req as Request & { user: typeof session.user }).user = session.user;
-  (req as Request & { session: typeof session.session }).session =
-    session.session;
+  (req as ActorRequest).user = session.user as ActorRequest["user"];
+  (req as ActorRequest).session = session.session;
 
   return next();
 };

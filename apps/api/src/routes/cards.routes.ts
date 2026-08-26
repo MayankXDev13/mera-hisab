@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { createCardSchema, updateCardSchema } from "@repo/schemas";
-import { validateBody } from "../lib/validate.js";
+import { validateBody } from "@repo/schemas";
 import { requireSession } from "../middlewares/auth.js";
 import { listCards, getCard, createCard, updateCard } from "../controllers/cards.controller.js";
 

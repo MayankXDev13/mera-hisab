@@ -1,17 +1,10 @@
+import type { accounts, creditCards, customers, transactions } from "@repo/db/schema";
+
 function toIso(d: Date | string): string {
   return typeof d === "string" ? new Date(d).toISOString() : d.toISOString();
 }
 
-export function toAccountDto(row: {
-  id: string;
-  name: string;
-  type: string;
-  openingBalancePaise: number;
-  currentBalancePaise: number;
-  status: string;
-  createdAt: Date | string;
-  updatedAt: Date | string;
-}) {
+export function toAccountDto(row: typeof accounts.$inferSelect) {
   return {
     id: row.id,
     name: row.name,
@@ -24,16 +17,7 @@ export function toAccountDto(row: {
   };
 }
 
-export function toCardDto(row: {
-  id: string;
-  issuer: string;
-  last4: string;
-  totalLimitPaise: number;
-  usedPaise: number;
-  status: string;
-  createdAt: Date | string;
-  updatedAt: Date | string;
-}) {
+export function toCardDto(row: typeof creditCards.$inferSelect) {
   return {
     id: row.id,
     issuer: row.issuer,
@@ -47,18 +31,7 @@ export function toCardDto(row: {
   };
 }
 
-export function toCustomerDto(row: {
-  id: string;
-  name: string;
-  username: string;
-  email: string | null;
-  phone: string | null;
-  notes: string | null;
-  monthlyRateBps: number;
-  status: string;
-  createdAt: Date | string;
-  updatedAt: Date | string;
-}) {
+export function toCustomerDto(row: typeof customers.$inferSelect) {
   return {
     id: row.id,
     name: row.name,
@@ -73,20 +46,7 @@ export function toCustomerDto(row: {
   };
 }
 
-export function toTransactionDto(row: {
-  id: string;
-  direction: string;
-  amountPaise: number;
-  customerId: string;
-  sourceType: string;
-  sourceId: string;
-  occurredAt: Date | string;
-  note: string | null;
-  createdBy: string | null;
-  reversedFromId: string | null;
-  monthlyChargeId: string | null;
-  createdAt: Date | string;
-}) {
+export function toTransactionDto(row: typeof transactions.$inferSelect) {
   return {
     id: row.id,
     direction: row.direction,

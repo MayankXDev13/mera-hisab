@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { createTransactionSchema, transactionFilterQuerySchema } from "@repo/schemas";
-import { validateBody, validateQuery } from "../lib/validate.js";
+import { validateBody, validateQuery } from "@repo/schemas";
 import { requireSession } from "../middlewares/auth.js";
 import { createTransaction, listTransactions, reverseTransaction } from "../controllers/transactions.controller.js";
 

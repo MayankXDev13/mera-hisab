@@ -1,27 +1,18 @@
-import type { Request, Response } from "express";
+import type { Request, Response, RequestHandler } from "express";
 import { db } from "@repo/db";
+import type { createTransactionSchema, transactionFilterQuerySchema } from "@repo/schemas";
+import type { z } from "zod";
+import type { BodyRequest, QueryRequest } from "@repo/schemas";
 import { toTransactionDto } from "../lib/dto.js";
+import { getActor } from "../lib/actor.js";
 import { createLedgerTransaction, reverseLedgerTransaction, LedgerError } from "../services/ledger.service.js";
 import { listTransactionsQuery } from "../services/queries.service.js";
 
-function getActor(req: Request): string | null {
-  return (req as unknown as { user?: { id: string } }).user?.id ?? null;
-}
+type CreateTransactionBody = z.infer<typeof createTransactionSchema>;
+type TransactionFilterQuery = z.infer<typeof transactionFilterQuerySchema>;
 
-export const createTransaction = async (req: Request, res: Response) => {
-  const body = (req as unknown as {
-    validatedBody: {
-      direction: "debit" | "credit";
-      customerId: string;
-      sourceType: "account" | "credit_card";
-      sourceId: string;
-      amountPaise?: number;
-      amountRupees?: string | number;
-      occurredAt?: string | Date;
-      note?: string | null;
-      monthlyChargeId?: string | null;
-    };
-  }).validatedBody;
+export const createTransaction: RequestHandler = async (req, res: Response) => {
+  const body = (req as BodyRequest<CreateTransactionBody>).validatedBody;
 
   const actorId = getActor(req);
   try {
@@ -33,7 +24,7 @@ export const createTransaction = async (req: Request, res: Response) => {
   }
 };
 
-export const reverseTransaction = async (req: Request, res: Response) => {
+export const reverseTransaction: RequestHandler = async (req: Request, res: Response) => {
   const { id: transactionId } = req.params as { id: string };
   const actorId = getActor(req);
   try {
@@ -45,19 +36,8 @@ export const reverseTransaction = async (req: Request, res: Response) => {
   }
 };
 
-export const listTransactions = async (req: Request, res: Response) => {
-  const q = (req as unknown as {
-    validatedQuery: {
-      customerId?: string;
-      sourceType?: "account" | "credit_card";
-      sourceId?: string;
-      direction?: "debit" | "credit";
-      from?: string;
-      to?: string;
-      page: number;
-      limit: number;
-    };
-  }).validatedQuery;
+export const listTransactions: RequestHandler = async (req, res: Response) => {
+  const q = (req as QueryRequest<TransactionFilterQuery>).validatedQuery;
 
   const { transactions: rows, total } = await listTransactionsQuery(q, { db });
   return res.json({ transactions: rows.map(toTransactionDto), total, page: q.page, limit: q.limit });
