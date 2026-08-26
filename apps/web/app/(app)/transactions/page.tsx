@@ -308,13 +308,13 @@ export default function TransactionsPage() {
                           {t.direction === "debit" ? "−" : "+"}
                           {formatRupees(t.amountPaise)}
                         </TableCell>
-                        <TableCell className="text-xs max-w-[160px] truncate">
+                        <TableCell className="text-xs max-w-40 truncate">
                           {accountMap.get(t.sourceId ?? "") ??
                             cardMap.get(t.sourceId ?? "") ??
                             (t.sourceId ? t.sourceId.slice(0, 8) : "repayment")}
                         </TableCell>
                         <TableCell
-                          className="text-xs max-w-[200px] truncate"
+                          className="text-xs max-w-50 truncate"
                           title={t.note ?? ""}
                         >
                           {t.note ?? "—"}

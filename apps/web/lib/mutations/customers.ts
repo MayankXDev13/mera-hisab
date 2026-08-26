@@ -29,6 +29,7 @@ export function useUpdateCustomer() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<CreateCustomerPayload> }) => {
+      
       const res = await api.patch<{ customer: Customer }>(`/api/customers/${id}`, data);
       return res.data.customer;
     },

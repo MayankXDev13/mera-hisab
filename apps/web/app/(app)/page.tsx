@@ -301,7 +301,7 @@ export default function DashboardPage() {
       <Card className="overflow-hidden">
         <CardHeader className="flex flex-row items-center justify-between py-4 border-b bg-card">
           <div className="flex items-center gap-3">
-            <span className="size-8 rounded-lg bg-primary text-primary-foreground grid place-items-center hidden sm:grid">
+            <span className="size-8 rounded-lg bg-primary text-primary-foreground grid place-items-center sm:grid">
               <RiBookOpenLine className="size-4" />
             </span>
             <div>
@@ -381,7 +381,7 @@ export default function DashboardPage() {
                           {formatRupees(t.amountPaise)}
                         </TableCell>
                         <TableCell
-                          className="text-xs max-w-[260px] truncate text-muted-foreground"
+                          className="text-xs max-w-65 truncate text-muted-foreground"
                           title={t.note ?? ""}
                         >
                           {t.note ?? "—"}
