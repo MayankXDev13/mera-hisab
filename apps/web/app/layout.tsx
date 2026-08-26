@@ -1,23 +1,42 @@
 import type { Metadata } from "next";
-import localFont from "next/font/local";
-import { Fraunces, IBM_Plex_Sans } from "next/font/google";
-import { AppShell } from "./components/AppShell";
+import { Geist, Geist_Mono, Instrument_Sans, Fraunces } from "next/font/google";
 import "./globals.css";
+import { cn } from "@/lib/utils";
+import { QueryProvider } from "@/providers/query-provider";
+import { AuthProvider } from "@/providers/auth-provider";
+import { Toaster } from "@/components/ui/toast";
 
-const geistMono = localFont({ src: "./fonts/GeistMonoVF.woff", variable: "--font-geist-mono" });
-const fraunces = Fraunces({ subsets: ["latin"], variable: "--font-fraunces", weight: ["600", "700"], display: "swap" });
-const plex = IBM_Plex_Sans({ subsets: ["latin"], variable: "--font-plex", weight: ["400", "500", "600"], display: "swap" });
+const instrumentSansHeading = Instrument_Sans({subsets:['latin'],variable:'--font-heading'});
+const fraunces = Fraunces({ subsets: ["latin"], variable: "--font-display" });
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
 
 export const metadata: Metadata = {
-  title: "Mera Hisab \u2014 Bahi-Khata",
-  description: "Private lending ledger. Every rupee given, received and charged, with a trail you can trust.",
+  title: "Mera Hisab — Khata. Hisab. Clear.",
+  description: "Bahi-khata for modern India. Track customers, accounts, cards and ledger in one place. Every rupee in paise.",
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en">
-      <body className={`${fraunces.variable} ${plex.variable} ${geistMono.variable} bg-paper text-ink font-sans antialiased`}>
-        <AppShell>{children}</AppShell>
+    <html
+      lang="en"
+      className={cn("h-full", "antialiased", geistSans.variable, geistMono.variable, instrumentSansHeading.variable, fraunces.variable)}
+    >
+      <body className="min-h-full flex flex-col bg-kagaz">
+        <QueryProvider>
+          <AuthProvider>
+            <Toaster />
+            {children}
+          </AuthProvider>
+        </QueryProvider>
       </body>
     </html>
   );

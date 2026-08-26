@@ -1,75 +1,32 @@
-import type { Request, Response } from "express";
-import { getRepo } from "../lib/repo.js";
-import { createLedger, systemClock, randomIdGen, LedgerError } from "../lib/ledger.js";
+import type { Request, Response, RequestHandler } from "express";
+import { db } from "@repo/db";
+import type { createTransactionSchema, transactionFilterQuerySchema } from "@repo/schemas";
+import type { z } from "zod";
+import type { BodyRequest, QueryRequest } from "@repo/schemas";
 import { toTransactionDto } from "../lib/dto.js";
+import { getActor } from "../lib/actor.js";
+import { createLedgerTransaction, LedgerError } from "../services/ledger.service.js";
+import { listTransactionsQuery } from "../services/queries.service.js";
 
-function actor(req: Request): string | null {
-  return (req as unknown as { user?: { id: string } }).user?.id ?? null;
-}
+type CreateTransactionBody = z.infer<typeof createTransactionSchema>;
+type TransactionFilterQuery = z.infer<typeof transactionFilterQuerySchema>;
 
-export async function listTransactions(req: Request, res: Response) {
-  const repo = getRepo();
-  const q = (req.validated?.query as Record<string, string | undefined> | undefined) ?? (req.query as Record<string, string | undefined>);
-  const list = await repo.transactions.list({
-    customerId: q.customerId,
-    sourceType: q.sourceType,
-    sourceId: q.sourceId,
-    direction: q.direction,
-    from: q.from,
-    to: q.to,
-  });
-  // pagination is validated but list is not yet paginated at repo level; slice here
-  const page = Number((q as Record<string, unknown>).page ?? 1);
-  const limit = Number((q as Record<string, unknown>).limit ?? 20);
-  const start = (Math.max(1, page) - 1) * Math.max(1, Math.min(100, limit));
-  const end = start + Math.max(1, Math.min(100, limit));
-  res.json(list.slice(start, end).map(toTransactionDto));
-}
-
-export async function createTransaction(req: Request, res: Response) {
-  const body = req.body as {
-    direction: "debit" | "credit";
-    customerId: string;
-    sourceType: "account" | "credit_card";
-    sourceId: string;
-    amountPaise?: number;
-    amountRupees?: string | number;
-    occurredAt?: string;
-    note?: string | null;
-  };
-  const repo = getRepo();
-  const ledger = createLedger({ repo, clock: systemClock, ids: randomIdGen });
+export const createTransaction = async (req: Request, res: Response) => {
+  const body = (req as unknown as BodyRequest<CreateTransactionBody>).validatedBody;
+  const actorId = getActor(req);
   try {
-    const tx = await ledger.post(
-      {
-        direction: body.direction,
-        customerId: body.customerId,
-        sourceType: body.sourceType,
-        sourceId: body.sourceId,
-        amountPaise: body.amountPaise,
-        amountRupees: body.amountRupees,
-        occurredAt: body.occurredAt,
-        note: body.note ?? null,
-      },
-      { actorId: actor(req) },
-    );
-    res.status(201).json(toTransactionDto(tx));
-  } catch (e: unknown) {
+    const row = await createLedgerTransaction(body, { db, actorId });
+    return res.status(201).json({ transaction: toTransactionDto(row) });
+  } catch (e) {
     if (e instanceof LedgerError) return res.status(e.statusCode).json({ error: e.message });
-    throw e;
+    return res.status(500).json({ error: (e as Error).message });
   }
-}
+};
 
-export async function reverseTransaction(req: Request, res: Response) {
-  const repo = getRepo();
-  const orig = await repo.transactions.get(String((req.params as Record<string, string>).id));
-  if (!orig) return res.status(404).json({ error: "not found" });
-  const ledger = createLedger({ repo, clock: systemClock, ids: randomIdGen });
-  try {
-    const tx = await ledger.reverse(orig.id, { actorId: actor(req) });
-    res.status(201).json(toTransactionDto(tx));
-  } catch (e: unknown) {
-    if (e instanceof LedgerError) return res.status(e.statusCode).json({ error: e.message });
-    throw e;
-  }
-}
+export const listTransactions = async (req: Request, res: Response) => {
+  const q = (req as unknown as QueryRequest<TransactionFilterQuery>).validatedQuery;
+  const userId = getActor(req)!;
+
+  const { transactions: rows, total } = await listTransactionsQuery(userId, q, { db });
+  return res.json({ transactions: rows.map(toTransactionDto), total, page: q.page, limit: q.limit });
+};

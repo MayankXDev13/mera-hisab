@@ -1,13 +1,15 @@
 import { Router } from "express";
-import { requireAuth } from "../lib/auth.js";
-import { validateBody } from "../lib/validate.js";
-import { createAccountSchema, updateAccountSchema } from "@repo/shared";
-import * as ctrl from "../controllers/accounts.controller.js";
+import { createBankAccountSchema as createAccountSchema, updateBankAccountSchema as updateAccountSchema } from "@repo/schemas";
+import { validateBody } from "@repo/schemas";
+import { requireSession } from "../middlewares/auth.js";
+import { listAccounts, getAccount, createAccount, updateAccount } from "../controllers/accounts.controller.js";
 
-export const accountsRouter = Router();
-accountsRouter.use(requireAuth);
-accountsRouter.get("/", ctrl.listAccounts);
-accountsRouter.post("/", validateBody(createAccountSchema), ctrl.createAccount);
-accountsRouter.get("/:id", ctrl.getAccount);
-accountsRouter.patch("/:id", validateBody(updateAccountSchema), ctrl.updateAccount);
-accountsRouter.post("/:id/deactivate", ctrl.deactivateAccount);
+const router = Router();
+
+router.use(requireSession);
+router.get("/", listAccounts);
+router.get("/:id", getAccount);
+router.post("/", validateBody(createAccountSchema), createAccount);
+router.patch("/:id", validateBody(updateAccountSchema), updateAccount);
+
+export default router;

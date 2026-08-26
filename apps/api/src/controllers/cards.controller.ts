@@ -1,88 +1,97 @@
 import type { Request, Response } from "express";
-import { getRepo } from "../lib/repo.js";
+import { and, eq } from "@repo/db";
+import { db } from "@repo/db";
+import { fundingSources, auditLogs } from "@repo/db/schema";
+import type { createCardSchema, updateCardSchema } from "@repo/schemas";
+import type { z } from "zod";
+import type { BodyRequest } from "@repo/schemas";
 import { toCardDto } from "../lib/dto.js";
+import { getActor } from "../lib/actor.js";
+import { listFundingSourcesQuery } from "../services/queries.service.js";
 
-function actor(req: Request): string | null {
-  return (req as unknown as { user?: { id: string } }).user?.id ?? null;
-}
+type CreateCardBody = z.infer<typeof createCardSchema>;
+type UpdateCardBody = z.infer<typeof updateCardSchema>;
 
-export async function listCards(_req: Request, res: Response) {
-  const repo = getRepo();
-  const list = await repo.cards.list();
-  res.json(list.map(toCardDto));
-}
+const KIND = "credit_card" as const;
 
-export async function createCard(req: Request, res: Response) {
-  const body = req.body as { issuer: string; last4: string; totalLimitPaise: number };
-  const repo = getRepo();
-  const id = crypto.randomUUID();
-  const now = new Date().toISOString();
-  const card = await repo.cards.create({
-    id,
-    issuer: body.issuer,
-    last4: body.last4,
-    totalLimitPaise: body.totalLimitPaise,
-    usedPaise: 0,
-    status: "active",
-    createdAt: now,
-    updatedAt: now,
-  });
-  await repo.audit.write({
-    actorId: actor(req),
+export const listCards = async (req: Request, res: Response) => {
+  const userId = getActor(req);
+  const rows = await listFundingSourcesQuery(userId!, KIND);
+  return res.json({ cards: rows.map(toCardDto) });
+};
+
+export const getCard = async (req: Request, res: Response) => {
+  const userId = getActor(req);
+  const { id } = req.params as { id: string };
+  const rows = await db
+    .select()
+    .from(fundingSources)
+    .where(and(eq(fundingSources.id, id), eq(fundingSources.userId, userId!), eq(fundingSources.kind, KIND)))
+    .limit(1);
+  if (!rows[0]) return res.status(404).json({ error: "card not found" });
+  return res.json({ card: toCardDto(rows[0]) });
+};
+
+export const createCard = async (req: Request, res: Response) => {
+  const userId = getActor(req)!;
+  const body = (req as unknown as BodyRequest<CreateCardBody>).validatedBody;
+  const [row] = await db
+    .insert(fundingSources)
+    .values({
+      userId,
+      kind: KIND,
+      name: body.issuer,
+      issuer: body.issuer,
+      last4: body.last4,
+      totalLimitPaise: body.totalLimitPaise,
+      usedPaise: 0,
+    })
+    .returning();
+  if (!row) return res.status(500).json({ error: "failed to create card" });
+  await db.insert(auditLogs).values({
+    actorId: userId,
     action: "card.create",
-    entityType: "credit_card",
-    entityId: id,
+    entityType: "funding_source",
+    entityId: row.id,
     before: null,
-    after: JSON.stringify(card),
+    after: row as unknown as never,
   });
-  res.status(201).json(toCardDto(card));
-}
+  return res.status(201).json({ card: toCardDto(row) });
+};
 
-export async function getCard(req: Request, res: Response) {
-  const repo = getRepo();
-  const card = await repo.cards.get(String((req.params as Record<string, string>).id));
-  if (!card) return res.status(404).json({ error: "not found" });
-  res.json(toCardDto(card));
-}
+export const updateCard = async (req: Request, res: Response) => {
+  const userId = getActor(req)!;
+  const { id } = req.params as { id: string };
+  const body = (req as unknown as BodyRequest<UpdateCardBody>).validatedBody;
 
-export async function updateCard(req: Request, res: Response) {
-  const repo = getRepo();
-  const card = await repo.cards.get(String((req.params as Record<string, string>).id));
-  if (!card) return res.status(404).json({ error: "not found" });
-  const body = req.body as { issuer?: string; last4?: string; totalLimitPaise?: number };
-  if (body.totalLimitPaise !== undefined && card.usedPaise > body.totalLimitPaise) {
-    return res.status(400).json({ error: "used exceeds new limit" });
-  }
-  const before = { ...card };
-  const updated = await repo.cards.update(card.id, {
-    ...(body.issuer !== undefined ? { issuer: body.issuer } : {}),
-    ...(body.last4 !== undefined ? { last4: body.last4 } : {}),
-    ...(body.totalLimitPaise !== undefined ? { totalLimitPaise: body.totalLimitPaise } : {}),
-  });
-  await repo.audit.write({
-    actorId: actor(req),
+  const beforeRows = await db
+    .select()
+    .from(fundingSources)
+    .where(and(eq(fundingSources.id, id), eq(fundingSources.userId, userId), eq(fundingSources.kind, KIND)))
+    .limit(1);
+  if (!beforeRows[0]) return res.status(404).json({ error: "card not found" });
+
+  const [row] = await db
+    .update(fundingSources)
+    .set({
+      ...(body.issuer !== undefined ? { issuer: body.issuer, name: body.issuer } : {}),
+      ...(body.last4 !== undefined ? { last4: body.last4 } : {}),
+      ...(body.totalLimitPaise !== undefined ? { totalLimitPaise: body.totalLimitPaise } : {}),
+      ...(body.status !== undefined ? { status: body.status } : {}),
+      updatedAt: new Date(),
+    })
+    .where(and(eq(fundingSources.id, id), eq(fundingSources.userId, userId)))
+    .returning();
+  if (!row) return res.status(404).json({ error: "card not found" });
+
+  await db.insert(auditLogs).values({
+    actorId: userId,
     action: "card.update",
-    entityType: "credit_card",
-    entityId: card.id,
-    before: JSON.stringify(before),
-    after: JSON.stringify(updated),
+    entityType: "funding_source",
+    entityId: row.id,
+    before: beforeRows[0] as unknown as never,
+    after: row as unknown as never,
   });
-  res.json(toCardDto(updated));
-}
 
-export async function deactivateCard(req: Request, res: Response) {
-  const repo = getRepo();
-  const card = await repo.cards.get(String((req.params as Record<string, string>).id));
-  if (!card) return res.status(404).json({ error: "not found" });
-  const before = { ...card };
-  const updated = await repo.cards.update(card.id, { status: "deactivated" });
-  await repo.audit.write({
-    actorId: actor(req),
-    action: "card.deactivate",
-    entityType: "credit_card",
-    entityId: card.id,
-    before: JSON.stringify(before),
-    after: JSON.stringify(updated),
-  });
-  res.json(toCardDto(updated));
-}
+  return res.json({ card: toCardDto(row) });
+};

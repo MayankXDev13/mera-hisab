@@ -1,23 +1,67 @@
-import type { Account, CreditCard, Customer, Transaction, MonthlyCharge } from "@repo/db";
+import type { customers, fundingSources, transactions } from "@repo/db/schema";
 
-export type CardDto = CreditCard & { availablePaise: number };
-export type CustomerDto = Customer & { outstandingPaise: number };
-export type TransactionDto = Transaction;
-export type AccountDto = Account;
-export type ChargeDto = MonthlyCharge;
-
-export function toCardDto(c: CreditCard): CardDto {
-  return { ...c, availablePaise: c.totalLimitPaise - c.usedPaise };
+function toIso(d: Date | string): string {
+  return typeof d === "string" ? new Date(d).toISOString() : d.toISOString();
 }
 
-export function toAccountDto(a: Account): AccountDto {
-  return { ...a };
+type FundingSourceRow = typeof fundingSources.$inferSelect;
+
+/** Bank-account view of a funding source row (kind = bank_account). */
+export function toAccountDto(row: FundingSourceRow) {
+  return {
+    id: row.id,
+    name: row.name,
+    kind: row.kind,
+    openingBalancePaise: row.openingBalancePaise ?? 0,
+    currentBalancePaise: row.currentBalancePaise ?? 0,
+    status: row.status,
+    createdAt: toIso(row.createdAt),
+    updatedAt: toIso(row.updatedAt),
+  };
 }
 
-export function toTransactionDto(t: Transaction): TransactionDto {
-  return { ...t };
+/** Credit-card view of a funding source row (kind = credit_card). */
+export function toCardDto(row: FundingSourceRow) {
+  const totalLimitPaise = row.totalLimitPaise ?? 0;
+  const usedPaise = row.usedPaise ?? 0;
+  return {
+    id: row.id,
+    issuer: row.issuer ?? row.name,
+    last4: row.last4 ?? "",
+    totalLimitPaise,
+    usedPaise,
+    availablePaise: totalLimitPaise - usedPaise,
+    status: row.status,
+    createdAt: toIso(row.createdAt),
+    updatedAt: toIso(row.updatedAt),
+  };
 }
 
-export function toChargeDto(c: MonthlyCharge): ChargeDto {
-  return { ...c };
+export function toCustomerDto(row: typeof customers.$inferSelect) {
+  return {
+    id: row.id,
+    name: row.name,
+    username: row.username,
+    email: row.email,
+    phone: row.phone,
+    notes: row.notes,
+    monthlyRateBps: row.monthlyRateBps,
+    status: row.status,
+    createdAt: toIso(row.createdAt),
+    updatedAt: toIso(row.updatedAt),
+  };
+}
+
+export function toTransactionDto(row: typeof transactions.$inferSelect) {
+  return {
+    id: row.id,
+    direction: row.direction,
+    amountPaise: row.amountPaise,
+    customerId: row.customerId,
+    sourceId: row.sourceId,
+    occurredAt: toIso(row.occurredAt),
+    note: row.note,
+    createdBy: row.createdBy,
+    createdAt: toIso(row.createdAt),
+  };
 }

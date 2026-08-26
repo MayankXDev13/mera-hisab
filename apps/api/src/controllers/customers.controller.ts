@@ -1,117 +1,169 @@
-import type { Request, Response } from "express";
-import { getRepo } from "../lib/repo.js";
-import { RepoError } from "@repo/db";
+import type { Request, Response, RequestHandler } from "express";
+import { and, asc, eq } from "@repo/db";
+import { db } from "@repo/db";
+import type { createCustomerSchema, updateCustomerSchema } from "@repo/schemas";
+import type { z } from "zod";
+import type { BodyRequest } from "@repo/schemas";
+import { customers, auditLogs } from "@repo/db/schema";
+import { toCustomerDto, toTransactionDto } from "../lib/dto.js";
+import { LedgerError } from "../services/ledger.service.js";
+import { getOutstandingQuery, getOutstandingBatchQuery } from "../services/queries.service.js";
+import { createRepayment, getSourceOutstanding } from "../services/repayment.service.js";
+import type { createRepaymentSchema } from "@repo/schemas";
 
-function actor(req: Request): string | null {
-  return (req as unknown as { user?: { id: string } }).user?.id ?? null;
-}
-function toRateBps(pct: number) {
-  return Math.round(pct * 100);
-}
-async function outstandingPaise(customerId: string): Promise<number> {
-  const repo = getRepo();
-  const list = await repo.transactions.list({ customerId });
-  let out = 0;
-  for (const t of list) {
-    if (t.direction === "debit") out += t.amountPaise;
-    else out -= t.amountPaise;
-  }
-  return out;
-}
+type CreateRepaymentBody = z.infer<typeof createRepaymentSchema>;
+import { getActor } from "../lib/actor.js";
 
-export async function listCustomers(req: Request, res: Response) {
-  const repo = getRepo();
-  const qRaw = (req.validated?.query as { q?: string } | undefined)?.q ?? (req.query.q as string | undefined);
-  const q = qRaw?.toLowerCase();
-  let list = await repo.customers.list();
-  if (q) list = list.filter((c) => c.name.toLowerCase().includes(q) || c.username.toLowerCase().includes(q) || (c.email ?? "").toLowerCase().includes(q));
-  const withOutstanding = await Promise.all(list.map(async (c) => ({ ...c, outstandingPaise: await outstandingPaise(c.id) })));
-  res.json(withOutstanding);
-}
+type CreateCustomerBody = z.infer<typeof createCustomerSchema>;
+type UpdateCustomerBody = z.infer<typeof updateCustomerSchema>;
 
-export async function createCustomer(req: Request, res: Response) {
-  const body = req.body as { name: string; username: string; email?: string | null; phone?: string | null; notes?: string | null; monthlyRatePct: number };
-  const repo = getRepo();
-  const id = crypto.randomUUID();
-  const now = new Date().toISOString();
+export const listCustomers: RequestHandler = async (req, res) => {
+  const userId = getActor(req);
+  const rows = await db
+    .select()
+    .from(customers)
+    .where(eq(customers.userId, userId!))
+    .orderBy(asc(customers.createdAt));
+  return res.json({ customers: rows.map(toCustomerDto) });
+};
+
+export const getCustomer: RequestHandler = async (req, res) => {
+  const userId = getActor(req);
+  const { id } = req.params as { id: string };
+  const rows = await db
+    .select()
+    .from(customers)
+    .where(and(eq(customers.id, id), eq(customers.userId, userId!)))
+    .limit(1);
+  if (!rows[0]) return res.status(404).json({ error: "customer not found" });
+  return res.json({ customer: toCustomerDto(rows[0]) });
+};
+
+export const createCustomer = async (req: Request, res: Response) => {
+  const userId = getActor(req)!;
+  const body = (req as unknown as BodyRequest<CreateCustomerBody>).validatedBody;
   try {
-    const cust = await repo.customers.create({
-      id,
-      name: body.name,
-      username: body.username,
-      email: body.email ?? null,
-      phone: body.phone ?? null,
-      notes: body.notes ?? null,
-      monthlyRateBps: toRateBps(body.monthlyRatePct),
-      status: "active",
-      createdAt: now,
-      updatedAt: now,
-    });
-    await repo.audit.write({
-      actorId: actor(req),
+    const [row] = await db
+      .insert(customers)
+      .values({
+        userId,
+        name: body.name,
+        username: body.username,
+        email: body.email ?? null,
+        phone: body.phone ?? null,
+        notes: body.notes ?? null,
+        monthlyRateBps: body.monthlyRateBps,
+        status: body.status ?? "active",
+      })
+      .returning();
+    if (!row) return res.status(500).json({ error: "failed to create customer" });
+    await db.insert(auditLogs).values({
+      actorId: userId,
       action: "customer.create",
       entityType: "customer",
-      entityId: id,
+      entityId: row.id,
       before: null,
-      after: JSON.stringify(cust),
+      after: row as unknown as never,
     });
-    res.status(201).json(cust);
-  } catch (e: unknown) {
-    if (e instanceof RepoError && e.statusCode === 409) return res.status(409).json({ error: "username already exists" });
-    throw e;
+    return res.status(201).json({ customer: toCustomerDto(row) });
+  } catch (e) {
+    const msg = (e as Error).message ?? "";
+    if (msg.includes("customers_username_unique") || msg.includes("duplicate key") || msg.includes("unique")) {
+      return res.status(409).json({ error: "username already exists" });
+    }
+    return res.status(500).json({ error: msg });
   }
-}
+};
 
-export async function getCustomer(req: Request, res: Response) {
-  const repo = getRepo();
-  const cust = await repo.customers.get(String((req.params as Record<string, string>).id));
-  if (!cust) return res.status(404).json({ error: "not found" });
-  res.json({ ...cust, outstandingPaise: await outstandingPaise(cust.id) });
-}
+export const updateCustomer = async (req: Request, res: Response) => {
+  const userId = getActor(req)!;
+  const { id } = req.params as { id: string };
+  const body = (req as unknown as BodyRequest<UpdateCustomerBody>).validatedBody;
 
-export async function updateCustomer(req: Request, res: Response) {
-  const repo = getRepo();
-  const cust = await repo.customers.get(String((req.params as Record<string, string>).id));
-  if (!cust) return res.status(404).json({ error: "not found" });
-  const body = req.body as { name?: string; username?: string; email?: string | null; phone?: string | null; notes?: string | null; monthlyRatePct?: number };
-  const before = { ...cust };
+  const existing = await db
+    .select()
+    .from(customers)
+    .where(and(eq(customers.id, id), eq(customers.userId, userId)))
+    .limit(1);
+  if (!existing[0]) return res.status(404).json({ error: "customer not found" });
+  const before = existing[0];
+
   try {
-    const updated = await repo.customers.update(cust.id, {
-      ...(body.name !== undefined ? { name: body.name } : {}),
-      ...(body.username !== undefined ? { username: body.username } : {}),
-      ...(body.email !== undefined ? { email: body.email ?? null } : {}),
-      ...(body.phone !== undefined ? { phone: body.phone ?? null } : {}),
-      ...(body.notes !== undefined ? { notes: body.notes ?? null } : {}),
-      ...(body.monthlyRatePct !== undefined ? { monthlyRateBps: toRateBps(body.monthlyRatePct) } : {}),
-    });
-    await repo.audit.write({
-      actorId: actor(req),
+    const [row] = await db
+      .update(customers)
+      .set({
+        ...(body.name !== undefined ? { name: body.name } : {}),
+        ...(body.username !== undefined ? { username: body.username } : {}),
+        ...(body.email !== undefined ? { email: body.email } : {}),
+        ...(body.phone !== undefined ? { phone: body.phone } : {}),
+        ...(body.notes !== undefined ? { notes: body.notes } : {}),
+        ...(body.monthlyRateBps !== undefined ? { monthlyRateBps: body.monthlyRateBps } : {}),
+        ...(body.status !== undefined ? { status: body.status } : {}),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(customers.id, id), eq(customers.userId, userId)))
+      .returning();
+    if (!row) return res.status(404).json({ error: "customer not found" });
+
+    await db.insert(auditLogs).values({
+      actorId: userId,
       action: "customer.update",
       entityType: "customer",
-      entityId: cust.id,
-      before: JSON.stringify(before),
-      after: JSON.stringify(updated),
+      entityId: row.id,
+      before: before as unknown as never,
+      after: row as unknown as never,
     });
-    res.json(updated);
-  } catch (e: unknown) {
-    if (e instanceof RepoError && e.statusCode === 409) return res.status(409).json({ error: "username already exists" });
-    throw e;
-  }
-}
 
-export async function deactivateCustomer(req: Request, res: Response) {
-  const repo = getRepo();
-  const cust = await repo.customers.get(String((req.params as Record<string, string>).id));
-  if (!cust) return res.status(404).json({ error: "not found" });
-  const before = { ...cust };
-  const updated = await repo.customers.update(cust.id, { status: "deactivated" });
-  await repo.audit.write({
-    actorId: actor(req),
-    action: "customer.deactivate",
-    entityType: "customer",
-    entityId: cust.id,
-    before: JSON.stringify(before),
-    after: JSON.stringify(updated),
-  });
-  res.json(updated);
-}
+    return res.json({ customer: toCustomerDto(row) });
+  } catch (e) {
+    const msg = (e as Error).message ?? "";
+    if (msg.includes("customers_username_unique") || msg.includes("duplicate key")) {
+      return res.status(409).json({ error: "username already exists" });
+    }
+    return res.status(500).json({ error: msg });
+  }
+};
+
+export const getOutstanding: RequestHandler = async (req, res) => {
+  const userId = getActor(req as Request)!;
+  const { id } = req.params as { id: string };
+  try {
+    const breakdown = await getSourceOutstanding(userId, id);
+    return res.json({
+      customerId: id,
+      outstandingPaise: breakdown.total,
+      sources: breakdown.sources,
+    });
+  } catch (e) {
+    if (e instanceof LedgerError) return res.status(e.statusCode).json({ error: e.message });
+    return res.status(500).json({ error: (e as Error).message });
+  }
+};
+
+export const createRepaymentHandler = async (req: Request, res: Response) => {
+  const userId = getActor(req as Request)!;
+  const body = (req as unknown as BodyRequest<CreateRepaymentBody>).validatedBody;
+  try {
+    const result = await createRepayment(userId, body);
+    return res.status(201).json({
+      transaction: toTransactionDto(result.transaction),
+      allocations: result.allocations.map((a) => ({
+        id: a.id,
+        sourceId: a.sourceId,
+        amountPaise: a.amountPaise,
+      })),
+    });
+  } catch (e) {
+    if (e instanceof LedgerError) return res.status(e.statusCode).json({ error: e.message });
+    return res.status(500).json({ error: (e as Error).message });
+  }
+};
+
+export const getOutstandingBatch: RequestHandler = async (req, res) => {
+  const userId = getActor(req)!;
+  const { ids } = req.query as { ids?: string | string[] };
+  const list = Array.isArray(ids) ? ids : ids ? ids.split(",") : [];
+  if (list.length === 0) return res.json({ outstandings: {} });
+  const outstandings = await getOutstandingBatchQuery(userId, list);
+  return res.json({ outstandings });
+};
