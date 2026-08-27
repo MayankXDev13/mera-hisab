@@ -17,7 +17,12 @@ export const auditLogs = pgTable(
     entityId: text("entity_id").notNull(),
     before: jsonb("before"),
     after: jsonb("after"),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   },
-  (t) => [index("audit_logs_entity_idx").on(t.entityType, t.entityId), index("audit_logs_created_idx").on(t.createdAt)],
+  (table) => [
+    index("audit_logs_entity_idx").on(table.entityType, table.entityId),
+    index("audit_logs_created_idx").on(table.createdAt),
+  ],
 );

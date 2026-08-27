@@ -29,12 +29,12 @@ export const customers = pgTable(
       .defaultNow()
       .notNull(),
   },
-  (t) => [
-    unique("customers_id_user_unique").on(t.id, t.userId),
-    index("customers_user_idx").on(t.userId),
+  (table) => [
+    unique("customers_id_user_unique").on(table.id, table.userId),
+    index("customers_user_idx").on(table.userId),
     check(
       "customer_rate_bps_range",
-      sql`${t.monthlyRateBps} BETWEEN 0 AND 10000`,
+      sql`${table.monthlyRateBps} BETWEEN 0 AND 10000`,
     ),
   ],
 );
