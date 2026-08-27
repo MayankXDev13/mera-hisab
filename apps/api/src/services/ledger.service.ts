@@ -30,7 +30,11 @@ type CreateInput = {
   note?: string | null;
 };
 
-async function assertCustomerExists(db: DbClient, userId: string, customerId: string) {
+async function assertCustomerExists(
+  db: DbClient,
+  userId: string,
+  customerId: string,
+) {
   const rows = await db
     .select()
     .from(customers)
@@ -43,11 +47,14 @@ async function loadSource(tx: DbClient, userId: string, sourceId: string) {
   const rows = await tx
     .select()
     .from(fundingSources)
-    .where(and(eq(fundingSources.id, sourceId), eq(fundingSources.userId, userId)))
+    .where(
+      and(eq(fundingSources.id, sourceId), eq(fundingSources.userId, userId)),
+    )
     .limit(1);
   if (!rows[0]) throw new LedgerError("funding source not found", 404);
   const src = rows[0];
-  if (src.status !== "active") throw new LedgerError("funding source is deactivated", 400);
+  if (src.status !== "active")
+    throw new LedgerError("funding source is deactivated", 400);
   return src;
 }
 
@@ -61,24 +68,35 @@ async function applySourceDelta(
   if (src.kind === "bank_account") {
     if (direction === "debit") {
       const balance = src.currentBalancePaise ?? 0;
-      if (balance < amountPaise) throw new LedgerError("insufficient account balance", 400);
+      if (balance < amountPaise)
+        throw new LedgerError("insufficient account balance", 400);
       await tx
         .update(fundingSources)
-        .set({ currentBalancePaise: balance - amountPaise, updatedAt: new Date() })
+        .set({
+          currentBalancePaise: balance - amountPaise,
+          updatedAt: new Date(),
+        })
         .where(eq(fundingSources.id, src.id));
     } else {
       await tx
         .update(fundingSources)
-        .set({ currentBalancePaise: (src.currentBalancePaise ?? 0) + amountPaise, updatedAt: new Date() })
+        .set({
+          currentBalancePaise: (src.currentBalancePaise ?? 0) + amountPaise,
+          updatedAt: new Date(),
+        })
         .where(eq(fundingSources.id, src.id));
     }
   } else {
     if (direction === "debit") {
       const available = (src.totalLimitPaise ?? 0) - (src.usedPaise ?? 0);
-      if (available < amountPaise) throw new LedgerError("insufficient card limit", 400);
+      if (available < amountPaise)
+        throw new LedgerError("insufficient card limit", 400);
       await tx
         .update(fundingSources)
-        .set({ usedPaise: (src.usedPaise ?? 0) + amountPaise, updatedAt: new Date() })
+        .set({
+          usedPaise: (src.usedPaise ?? 0) + amountPaise,
+          updatedAt: new Date(),
+        })
         .where(eq(fundingSources.id, src.id));
     } else {
       const nextUsed = Math.max(0, (src.usedPaise ?? 0) - amountPaise);
@@ -100,7 +118,10 @@ export async function createLedgerTransaction(
   if (!userId) throw new LedgerError("unauthorized", 401);
 
   if (input.direction === "credit") {
-    throw new LedgerError("repayments must be recorded via the repayments endpoint", 400);
+    throw new LedgerError(
+      "repayments must be recorded via the repayments endpoint",
+      400,
+    );
   }
 
   const amountPaise = resolveAmount(input);
