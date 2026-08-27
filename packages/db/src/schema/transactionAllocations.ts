@@ -4,11 +4,12 @@ import {
   index,
   integer,
   pgTable,
-  text,
   timestamp,
   unique,
   uuid,
+  text,
 } from "drizzle-orm/pg-core";
+
 import { sql } from "drizzle-orm";
 
 import { transactions } from "./transactions.js";
@@ -23,13 +24,15 @@ export const transactionAllocations = pgTable(
 
     userId: text("user_id")
       .notNull()
-      .references(() => user.id),
+      .references(() => user.id, {
+        onDelete: "cascade",
+      }),
 
     transactionId: uuid("transaction_id").notNull(),
 
-    customerId: uuid("customer_id").notNull(),
+    fundingSourceId: uuid("funding_source_id").notNull(),
 
-    sourceId: uuid("source_id").notNull(),
+    customerId: uuid("customer_id").notNull(),
 
     amountPaise: integer("amount_paise").notNull(),
 
@@ -40,31 +43,42 @@ export const transactionAllocations = pgTable(
       .notNull(),
   },
 
-  (table) => [
+  (t) => [
     foreignKey({
-      name: "alloc_txn_tenant_fk",
-      columns: [table.transactionId, table.userId],
+      name: "allocation_transaction_tenant_fk",
+
+      columns: [t.transactionId, t.userId],
+
       foreignColumns: [transactions.id, transactions.userId],
     }).onDelete("cascade"),
 
     foreignKey({
-      name: "alloc_customer_tenant_fk",
-      columns: [table.customerId, table.userId],
-      foreignColumns: [customers.id, customers.userId],
-    }),
+      name: "allocation_source_tenant_fk",
 
-    foreignKey({
-      name: "alloc_source_tenant_fk",
-      columns: [table.sourceId, table.userId],
+      columns: [t.fundingSourceId, t.userId],
+
       foreignColumns: [fundingSources.id, fundingSources.userId],
     }),
 
-    check("alloc_amount_positive", sql`${table.amountPaise} > 0`),
+    foreignKey({
+      name: "allocation_customer_tenant_fk",
 
-    unique("alloc_txn_source_unique").on(table.transactionId, table.sourceId),
+      columns: [t.customerId, t.userId],
 
-    index("alloc_user_customer_idx").on(table.userId, table.customerId),
+      foreignColumns: [customers.id, customers.userId],
+    }),
 
-    index("alloc_source_idx").on(table.sourceId),
+    check("allocation_amount_positive", sql`${t.amountPaise} > 0`),
+
+    unique("allocation_transaction_source_unique").on(
+      t.transactionId,
+      t.fundingSourceId,
+    ),
+
+    index("allocation_user_customer_idx").on(t.userId, t.customerId),
+
+    index("allocation_transaction_idx").on(t.transactionId),
+
+    index("allocation_source_idx").on(t.fundingSourceId),
   ],
 );

@@ -10,10 +10,10 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
+
 import { sql } from "drizzle-orm";
 
 import { customers } from "./customers.js";
-import { fundingSources } from "./fundingSources.js";
 import { user } from "./auth.js";
 
 export const transactionDirectionEnum = pgEnum("transaction_direction", [
@@ -28,17 +28,15 @@ export const transactions = pgTable(
 
     userId: text("user_id")
       .notNull()
-      .references(() => user.id),
+      .references(() => user.id, {
+        onDelete: "cascade",
+      }),
+
+    customerId: uuid("customer_id").notNull(),
 
     direction: transactionDirectionEnum("direction").notNull(),
 
     amountPaise: integer("amount_paise").notNull(),
-
-    customerId: uuid("customer_id").notNull(),
-
-    // Required for debit.
-    // NULL for credit.
-    sourceId: uuid("source_id"),
 
     occurredAt: timestamp("occurred_at", {
       withTimezone: true,
@@ -61,45 +59,24 @@ export const transactions = pgTable(
       .notNull(),
   },
 
-  (table) => [
-    unique("transactions_id_user_unique").on(table.id, table.userId),
+  (t) => [
+    unique("transactions_id_user_unique").on(t.id, t.userId),
 
     foreignKey({
       name: "txn_customer_tenant_fk",
-      columns: [table.customerId, table.userId],
+
+      columns: [t.customerId, t.userId],
+
       foreignColumns: [customers.id, customers.userId],
     }),
 
-    foreignKey({
-      name: "txn_source_tenant_fk",
-      columns: [table.sourceId, table.userId],
-      foreignColumns: [fundingSources.id, fundingSources.userId],
-    }),
-
-    check(
-      "txn_direction_source_shape",
-      sql`
-        (
-          ${table.direction} = 'debit'
-          AND ${table.sourceId} IS NOT NULL
-        )
-        OR
-        (
-          ${table.direction} = 'credit'
-          AND ${table.sourceId} IS NULL
-        )
-      `,
-    ),
-
-    check("txn_amount_positive", sql`${table.amountPaise} > 0`),
+    check("txn_amount_positive", sql`${t.amountPaise} > 0`),
 
     index("transactions_user_occurred_idx").on(
-      table.userId,
-      sql`${table.occurredAt} DESC`,
+      t.userId,
+      sql`${t.occurredAt} DESC`,
     ),
 
-    index("transactions_user_customer_idx").on(table.userId, table.customerId),
-
-    index("transactions_source_idx").on(table.sourceId),
+    index("transactions_user_customer_idx").on(t.userId, t.customerId),
   ],
 );
