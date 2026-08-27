@@ -2,14 +2,18 @@ import { Router } from "express";
 import { createCardSchema, updateCardSchema } from "@repo/schemas";
 import { validateBody } from "@repo/schemas";
 import { requireSession } from "../middlewares/auth.js";
-import { listCards, getCard, createCard, updateCard } from "../controllers/cards.controller.js";
+import { createCardsController } from "../controllers/cards.controller.js";
+import { asyncHandler } from "../lib/http/asyncHandler.js";
+import "../lib/http/types.js";
 
-const router = Router();
+export const createCardsRoutes = (controller = createCardsController()) => {
+  const router = Router();
+  router.use(requireSession);
+  router.get("/", asyncHandler(controller.listCards));
+  router.get("/:id", asyncHandler(controller.getCard));
+  router.post("/", validateBody(createCardSchema), asyncHandler(controller.createCard));
+  router.patch("/:id", validateBody(updateCardSchema), asyncHandler(controller.updateCard));
+  return router;
+};
 
-router.use(requireSession);
-router.get("/", listCards);
-router.get("/:id", getCard);
-router.post("/", validateBody(createCardSchema), createCard);
-router.patch("/:id", validateBody(updateCardSchema), updateCard);
-
-export default router;
+export default createCardsRoutes();
