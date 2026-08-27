@@ -1,4 +1,5 @@
 import type { Request } from "express";
+import "./http/types.js";
 
 export type ActorRequest = Request & { user?: { id: string }; session?: unknown };
 

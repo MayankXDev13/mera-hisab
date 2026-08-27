@@ -2,14 +2,18 @@ import { Router } from "express";
 import { createBankAccountSchema as createAccountSchema, updateBankAccountSchema as updateAccountSchema } from "@repo/schemas";
 import { validateBody } from "@repo/schemas";
 import { requireSession } from "../middlewares/auth.js";
-import { listAccounts, getAccount, createAccount, updateAccount } from "../controllers/accounts.controller.js";
+import { createAccountsController } from "../controllers/accounts.controller.js";
+import { asyncHandler } from "../lib/http/asyncHandler.js";
+import "../lib/http/types.js";
 
-const router = Router();
+export const createAccountsRoutes = (controller = createAccountsController()) => {
+  const router = Router();
+  router.use(requireSession);
+  router.get("/", asyncHandler(controller.listAccounts));
+  router.get("/:id", asyncHandler(controller.getAccount));
+  router.post("/", validateBody(createAccountSchema), asyncHandler(controller.createAccount));
+  router.patch("/:id", validateBody(updateAccountSchema), asyncHandler(controller.updateAccount));
+  return router;
+};
 
-router.use(requireSession);
-router.get("/", listAccounts);
-router.get("/:id", getAccount);
-router.post("/", validateBody(createAccountSchema), createAccount);
-router.patch("/:id", validateBody(updateAccountSchema), updateAccount);
-
-export default router;
+export default createAccountsRoutes();

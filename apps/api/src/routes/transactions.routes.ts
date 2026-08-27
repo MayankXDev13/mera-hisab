@@ -2,13 +2,17 @@ import { Router } from "express";
 import { createTransactionSchema, transactionFilterQuerySchema } from "@repo/schemas";
 import { validateBody, validateQuery } from "@repo/schemas";
 import { requireSession } from "../middlewares/auth.js";
-import { createTransaction, listTransactions } from "../controllers/transactions.controller.js";
+import { createTransactionsController } from "../controllers/transactions.controller.js";
+import { asyncHandler } from "../lib/http/asyncHandler.js";
+import "../lib/http/types.js";
 
-const router = Router();
+export const createTransactionsRoutes = (controller = createTransactionsController()) => {
+  const router = Router();
+  router.use(requireSession);
+  router.get("/", validateQuery(transactionFilterQuerySchema), asyncHandler(controller.listTransactions));
+  // debits only — repayments live at POST /api/customers/:id/repayments
+  router.post("/", validateBody(createTransactionSchema), asyncHandler(controller.createTransaction));
+  return router;
+};
 
-router.use(requireSession);
-router.get("/", validateQuery(transactionFilterQuerySchema), listTransactions);
-// debits only — repayments live at POST /api/customers/:id/repayments
-router.post("/", validateBody(createTransactionSchema), createTransaction);
-
-export default router;
+export default createTransactionsRoutes();
